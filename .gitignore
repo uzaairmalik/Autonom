@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+.env
+
+# YOLO output folders
+runs/
+datasets/
+
+# App output folders
+uploads/
+outputs/
+
+# Large media files
+*.avi
+*.mp4
+*.mov
+*.mkv
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
