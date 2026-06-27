@@ -2,7 +2,7 @@ import streamlit as st
 from PIL import Image
 import tempfile
 import os
-from inference import detect_image
+from inference import detect_image, detect_video
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -320,25 +320,41 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── File Uploader ───────────────────────────────────────────────────────────────
+VIDEO_EXTS = {".mp4", ".avi", ".mov", ".mkv"}
+IMAGE_EXTS = {".jpg", ".jpeg", ".png"}
+
 uploaded_file = st.file_uploader(
     "📁  Drop an aerial image or video here, or click to browse",
-    type=["jpg", "jpeg", "png" , "mp4"],
-    help="Supported formats: JPG, JPEG, PNG, MP4. For videos, only the first frame will be processed."
+    type=["jpg", "jpeg", "png", "mp4", "avi", "mov"],
+    help="Images: JPG / PNG · Videos: MP4, AVI, MOV — every frame will be processed"
 )
 
-# ── Resolve input (upload or sample) ───────────────────────────────────────────
-input_image = None
-source_name = ""
+# ── Resolve input source ───────────────────────────────────────────────────────
+input_image  = None   # PIL Image (for image mode)
+source_name  = ""
+is_video     = False
+video_bytes  = None
 
 if uploaded_file is not None:
-    input_image = Image.open(uploaded_file)
+    ext = os.path.splitext(uploaded_file.name)[1].lower()
     source_name = uploaded_file.name
+    if ext in VIDEO_EXTS:
+        is_video    = True
+        video_bytes = uploaded_file.read()
+    else:
+        input_image = Image.open(uploaded_file)
 elif selected_sample != "— none —":
     sample_path = os.path.join(sample_dir, selected_sample)
-    input_image = Image.open(sample_path)
+    ext = os.path.splitext(selected_sample)[1].lower()
     source_name = selected_sample
+    if ext in VIDEO_EXTS:
+        is_video = True
+        with open(sample_path, "rb") as f:
+            video_bytes = f.read()
+    else:
+        input_image = Image.open(sample_path)
 
-# ── Inference & Display ─────────────────────────────────────────────────────────
+# ── IMAGE mode ─────────────────────────────────────────────────────────────────
 if input_image is not None:
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
@@ -352,13 +368,11 @@ if input_image is not None:
         """, unsafe_allow_html=True)
         st.image(input_image, use_container_width=True)
 
-    # Run inference
     with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp:
         input_image.save(temp.name)
         temp_path = temp.name
 
     output_path = "outputs/result.jpg"
-
     with st.spinner("🔍 Running YOLO detection…"):
         result_path, counts = detect_image(temp_path, output_path, conf)
 
@@ -371,8 +385,6 @@ if input_image is not None:
 
         if result_path and os.path.exists(result_path):
             st.image(result_path, use_container_width=True)
-
-            # Download button
             with open(result_path, "rb") as f:
                 st.download_button(
                     label="⬇️  Download Result",
@@ -383,14 +395,85 @@ if input_image is not None:
         else:
             st.warning("⚠️  No objects detected above the confidence threshold. Try lowering the slider.")
 
-    # ── Detection Results Section ───────────────────────────────────────────────
+    os.remove(temp_path)
+
+# ── VIDEO mode ─────────────────────────────────────────────────────────────────
+elif is_video and video_bytes is not None:
+    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+
+    # Show original video
+    col1, col2 = st.columns(2, gap="large")
+    with col1:
+        st.markdown(f"""
+        <div class="image-panel">
+            <div class="panel-label">🎬 Input Video <span style="color:#4a5568;font-size:0.7rem;font-weight:400;text-transform:none;">· {source_name}</span></div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.video(video_bytes)
+
+    # Write video bytes to a temp file
+    ext_suffix = os.path.splitext(source_name)[1].lower() or ".mp4"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=ext_suffix) as tmp_vid:
+        tmp_vid.write(video_bytes)
+        tmp_vid_path = tmp_vid.name
+
+    output_vid_path = "outputs/result.mp4"
+
+    # Progress bar + frame-by-frame processing
+    st.markdown("**🔍 Processing video — this may take a moment…**")
+    progress_bar  = st.progress(0, text="Starting…")
+    status_text   = st.empty()
+
+    gen     = detect_video(tmp_vid_path, output_vid_path, conf)
+    counts  = {}
+    try:
+        while True:
+            frame_idx, total_frames, frame_counts = next(gen)
+            counts = frame_counts          # show latest frame counts live
+            pct    = int((frame_idx + 1) / max(total_frames, 1) * 100)
+            progress_bar.progress(pct, text=f"Frame {frame_idx + 1} / {total_frames}")
+    except StopIteration as e:
+        # Generator returned (output_path, aggregate_counts)
+        if e.value:
+            output_vid_path, counts = e.value
+    except RuntimeError as e:
+        st.error(f"❌ Video processing failed: {e}")
+        counts = {}
+
+    progress_bar.progress(100, text="✅ Done!")
+    status_text.empty()
+
+    with col2:
+        st.markdown("""
+        <div class="image-panel">
+            <div class="panel-label">🎯 Annotated Output</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if os.path.exists(output_vid_path):
+            with open(output_vid_path, "rb") as f:
+                vid_bytes_out = f.read()
+            st.video(vid_bytes_out)
+            st.download_button(
+                label="⬇️  Download Annotated Video",
+                data=vid_bytes_out,
+                file_name="aerial_detection_result.mp4",
+                mime="video/mp4",
+            )
+        else:
+            st.warning("⚠️  Could not generate annotated video.")
+
+    os.remove(tmp_vid_path)
+
+# ── Shared: detection counts section ──────────────────────────────────────────
+if input_image is not None or is_video:
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
     st.markdown("### 📊 Detection Results")
 
     if counts:
         total = sum(counts.values())
+        label = "across all frames" if is_video else "in this image"
 
-        # Metric cards
         cards_html = '<div class="metrics-grid">'
         for cls_name, cnt in sorted(counts.items(), key=lambda x: -x[1]):
             icon = get_icon(cls_name)
@@ -403,21 +486,19 @@ if input_image is not None:
         cards_html += '</div>'
         st.markdown(cards_html, unsafe_allow_html=True)
 
-        # Total banner
         st.markdown(f"""
         <div class="total-banner">
             <div>
                 <div class="total-label">Total Objects Detected</div>
-                <div style="color:#4a5568;font-size:0.72rem;margin-top:0.2rem;">{len(counts)} class{'es' if len(counts)>1 else ''} found · conf ≥ {conf:.0%}</div>
+                <div style="color:#4a5568;font-size:0.72rem;margin-top:0.2rem;">
+                    {len(counts)} class{'es' if len(counts)>1 else ''} found {label} · conf ≥ {conf:.0%}
+                </div>
             </div>
             <div class="total-value">{total}</div>
         </div>
         """, unsafe_allow_html=True)
-
     else:
-        st.info("ℹ️  No detections returned. The model found no objects above the confidence threshold in this image.")
-
-    os.remove(temp_path)
+        st.info("ℹ️  No detections returned. Try lowering the confidence threshold.")
 
 else:
     # Placeholder state
