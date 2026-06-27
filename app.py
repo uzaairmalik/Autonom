@@ -18,7 +18,7 @@ st.write(
 
 conf = st.slider("Confidence Threshold", 0.1, 0.9, 0.25, 0.05)
 
-uploaded_file = st.file_uploader("Upload Aerial Image", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader("Upload Aerial Image or video", type=["jpg", "jpeg", "png", "mp4"])
 
 if uploaded_file is not None:
     input_image = Image.open(uploaded_file)
