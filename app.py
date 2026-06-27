@@ -277,7 +277,7 @@ with st.sidebar:
     st.markdown("""
     <div style="text-align:center;padding:1.2rem 0 0.5rem;">
         <div style="font-size:2.5rem">🛸</div>
-        <div style="font-size:1.1rem;font-weight:700;color:#90cdf4;margin-top:0.3rem;">Autonom</div>
+        <div style="font-size:1.1rem;font-weight:700;color:#90cdf4;margin-top:0.3rem;">Aerial Detection</div>
         <div style="font-size:0.72rem;color:#4a5568;margin-top:0.2rem;">Aerial Scene Understanding</div>
     </div>
     """, unsafe_allow_html=True)
@@ -290,7 +290,7 @@ with st.sidebar:
     st.markdown('<div class="sidebar-section-title">ℹ️ About</div>', unsafe_allow_html=True)
     st.markdown("""
     <div style="font-size:0.8rem;color:#718096;line-height:1.6;">
-    This tool uses a custom-trained <b style="color:#90cdf4;">YOLOv8</b> model to detect
+    This tool uses a custom-trained <b style="color:#90cdf4;">YOLOv11</b> model to detect
     objects in aerial drone imagery in real time.<br><br>
     <b style="color:#90cdf4;">Detectable classes:</b><br>
     🚗 Car &nbsp;·&nbsp; 🚛 Truck &nbsp;·&nbsp; 🚌 Bus<br>
@@ -298,32 +298,32 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="sidebar-section-title">📂 Sample Images</div>', unsafe_allow_html=True)
-    sample_dir = "sample_images"
+    st.markdown('<div class="sidebar-section-title">📂 Sample Images and videos</div>', unsafe_allow_html=True)
+    sample_dir = "sample_images and sample_videos"
     sample_files = [f for f in os.listdir(sample_dir)
-                    if f.lower().endswith((".jpg", ".jpeg", ".png"))] if os.path.isdir(sample_dir) else []
+                    if f.lower().endswith((".jpg", ".jpeg", ".png" , ".mp4"))] if os.path.isdir(sample_dir) else []
     if sample_files:
-        selected_sample = st.selectbox("Try a sample image", ["— none —"] + sample_files)
+        selected_sample = st.selectbox("Try a sample image or video", ["— none —"] + sample_files)
     else:
         selected_sample = "— none —"
 
 # ── Hero Header ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="hero-header">
-    <div class="hero-badge">🛸 FYP · Computer Vision · YOLOv8</div>
+    <div class="hero-badge">🛸 FYP · Computer Vision · YOLOv11</div>
     <h1 class="hero-title">Aerial Scene Understanding</h1>
     <p class="hero-sub">
         Upload a drone image to detect and count vehicles, pedestrians, and more —
-        powered by a custom-trained YOLOv8 model.
+        powered by a custom-trained YOLOv11 model.
     </p>
 </div>
 """, unsafe_allow_html=True)
 
 # ── File Uploader ───────────────────────────────────────────────────────────────
 uploaded_file = st.file_uploader(
-    "📁  Drop an aerial image here, or click to browse",
-    type=["jpg", "jpeg", "png"],
-    help="Supported formats: JPG, JPEG, PNG"
+    "📁  Drop an aerial image or video here, or click to browse",
+    type=["jpg", "jpeg", "png" , "mp4"],
+    help="Supported formats: JPG, JPEG, PNG, MP4. For videos, only the first frame will be processed."
 )
 
 # ── Resolve input (upload or sample) ───────────────────────────────────────────
@@ -432,7 +432,7 @@ else:
 # ── Footer ──────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="footer">
-    Built with <span>❤️</span> using <span>YOLOv8</span> & <span>Streamlit</span> ·
-    Final Year Project · <span>Autonom</span>
+    Built with <span>❤️</span> using <span>YOLOv11</span> & <span>Streamlit</span> ·
+    SemesterProject · <span>Aerial Detection</span>
 </div>
 """, unsafe_allow_html=True)
