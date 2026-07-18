@@ -16,7 +16,7 @@ async function initModel() {
     try {
         statusEl.innerText = "Loading ONNX model (may take a moment)...";
         // Initialize ONNX Runtime session
-        session = await ort.InferenceSession.create(modelPath, { executionProviders: ['wasm'] });
+        session = await ort.InferenceSession.create(modelPath, { executionProviders: ['webgpu', 'wasm'] });
         statusEl.innerText = "Model loaded successfully. Ready for inference.";
         document.getElementById('run-inference-btn').disabled = false;
     } catch (e) {

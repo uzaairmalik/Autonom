@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -27,7 +27,30 @@
     --mono: 'IBM Plex Mono', ui-monospace, monospace;
     --sans: 'IBM Plex Sans', system-ui, sans-serif;
     --maxw: 1120px;
+    --transition: 0.22s ease;
   }
+
+  [data-theme="light"] {
+    --bg: #f2f4fb;
+    --bg-panel: #ffffff;
+    --bg-panel-alt: #eaecf5;
+    --bg-raised: #e2e6f2;
+    --ink: #0d1220;
+    --ink-muted: #4a5578;
+    --ink-faint: #9aa3bf;
+    --line: rgba(13,18,32,0.09);
+  }
+
+  @keyframes pageEnter {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pageExit {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(-14px); }
+  }
+  .page-enter { animation: pageEnter 0.45s cubic-bezier(0.22,1,0.36,1) both; }
+  .page-exit  { animation: pageExit  0.28s ease forwards; }
 
   *{ box-sizing: border-box; }
   html{ scroll-behavior: smooth; }
@@ -43,6 +66,7 @@
     font-family: var(--sans);
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
+    transition: background var(--transition), color var(--transition);
   }
 
   a{ color: inherit; }
@@ -109,7 +133,9 @@
     background: rgba(10,15,28,0.86);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--line);
+    transition: background var(--transition);
   }
+  [data-theme="light"] header { background: rgba(242,244,251,0.92); }
   .nav{
     display: flex; align-items: center; justify-content: space-between;
     padding: 14px 28px; max-width: var(--maxw); margin: 0 auto;
@@ -142,6 +168,13 @@
     border: 1px solid var(--accent); transition: opacity 0.15s;
   }
   .nav-cta:hover{ opacity: 0.85; }
+  .theme-toggle{
+    width: 34px; height: 34px; border: 1px solid var(--line); background: var(--bg-panel);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    color: var(--ink-muted); font-size: 15px; transition: all 0.2s; padding: 0;
+  }
+  .theme-toggle:hover{ border-color: var(--accent); color: var(--accent); }
+  .nav-actions{ display: flex; align-items: center; gap: 10px; }
   .navlinks-mobile-hide{ }
   @media (max-width: 760px){
     .navlinks{ display: none; }
@@ -338,8 +371,12 @@
       <li><a href="#method">Method</a></li>
       <li><a href="#results">Results</a></li>
       <li><a href="#novelty">SAHI</a></li>
+      <li><a href="demo.html" id="demo-nav-link">Demo ✦</a></li>
     </ul>
-    <a class="nav-cta" href="https://github.com/" target="_blank" rel="noopener">GitHub ↗</a>
+    <div class="nav-actions">
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme" title="Toggle light/dark">☀️</button>
+      <a class="nav-cta" href="https://github.com/uzaairmalik/Autonom" target="_blank" rel="noopener">GitHub ↗</a>
+    </div>
   </nav>
 </header>
 
@@ -476,23 +513,42 @@
     </div>
   </section>
 
-  <!-- LIVE DEMO -->
+  <!-- DEMO CTA -->
   <section id="demo">
     <div class="wrap">
       <div class="eyebrow">Interactive</div>
-      <h2 class="reveal">Try it Live (ONNX in Browser)</h2>
-      <p class="section-intro reveal">This runs the exported YOLO11n ONNX model directly in your browser using ONNX Runtime Web. No backend server needed.</p>
-      
-      <div class="demo-container">
-        <div class="demo-controls">
-          <input type="file" id="image-upload" accept="image/jpeg, image/png">
-          <button id="run-inference-btn" class="btn btn-primary" disabled>Run Inference</button>
-          <p id="demo-status">Ready. Upload an image to start.</p>
+      <h2 class="reveal">Try it Live in Your Browser</h2>
+      <p class="section-intro reveal">The full interactive demo runs on a dedicated page — upload an image, paste from clipboard, or drag-and-drop a drone video. Detection runs entirely client-side using ONNX Runtime Web with WebGPU acceleration. No server. No upload. Fully private.</p>
+      <div style="display:flex;gap:32px;flex-wrap:wrap;margin-top:32px;">
+        <div style="flex:1;min-width:220px;padding:28px 24px;background:var(--bg-panel);border:1px solid var(--accent-line);position:relative;">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px;">// inputs</div>
+          <ul style="margin:0;padding-left:18px;color:var(--ink-muted);font-size:14px;line-height:1.9;">
+            <li>Upload — images &amp; videos</li>
+            <li>Paste — Ctrl+V from clipboard</li>
+            <li>Drag &amp; Drop — anywhere</li>
+          </ul>
         </div>
-        <div class="demo-canvas-wrapper" style="position: relative; max-width: 640px; margin-top: 20px; border: 1px solid var(--line); background: var(--bg-panel);">
-          <img id="demo-image" style="display: block; width: 100%; height: auto; max-height: 640px; object-fit: contain;">
-          <canvas id="demo-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></canvas>
+        <div style="flex:1;min-width:220px;padding:28px 24px;background:var(--bg-panel);border:1px solid var(--line);">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px;">// outputs</div>
+          <ul style="margin:0;padding-left:18px;color:var(--ink-muted);font-size:14px;line-height:1.9;">
+            <li>Bounding boxes per class</li>
+            <li>Confidence score labels</li>
+            <li>Live FPS counter (video)</li>
+            <li>Per-class detection stats</li>
+          </ul>
         </div>
+        <div style="flex:1;min-width:220px;padding:28px 24px;background:var(--bg-panel);border:1px solid var(--line);">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px;">// runtime</div>
+          <ul style="margin:0;padding-left:18px;color:var(--ink-muted);font-size:14px;line-height:1.9;">
+            <li>ONNX Runtime Web</li>
+            <li>WebGPU (GPU) preferred</li>
+            <li>WASM fallback</li>
+            <li>Zero server required</li>
+          </ul>
+        </div>
+      </div>
+      <div class="hero-actions" style="margin-top:36px;">
+        <a class="btn btn-primary" href="demo.html" id="demo-cta-btn">Launch Demo →</a>
       </div>
     </div>
   </section>
@@ -685,6 +741,25 @@
   })();
 </script>
 
-<script src="app.js"></script>
+<script>
+  // ─── Theme ───
+  const _html = document.documentElement;
+  const _tb   = document.getElementById('theme-toggle');
+  function _applyTheme(t) {
+    _html.setAttribute('data-theme', t);
+    _tb.textContent = t === 'dark' ? '☀️' : '🌙';
+    localStorage.setItem('theme', t);
+  }
+  _applyTheme(localStorage.getItem('theme') || 'dark');
+  _tb.addEventListener('click', () => _applyTheme(_html.dataset.theme === 'dark' ? 'light' : 'dark'));
+
+  // ─── Page transitions ───
+  function _nav(href) {
+    document.querySelector('main').classList.add('page-exit');
+    setTimeout(() => { window.location.href = href; }, 300);
+  }
+  document.getElementById('demo-cta-btn').addEventListener('click', e => { e.preventDefault(); _nav('demo.html'); });
+  document.getElementById('demo-nav-link').addEventListener('click', e => { e.preventDefault(); _nav('demo.html'); });
+</script>
 </body>
 </html>

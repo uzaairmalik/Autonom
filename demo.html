@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Demo — YOLO11n Aerial Object Detection</title>
+<meta name="description" content="Interactive browser-based aerial object detection powered by YOLO11n ONNX Runtime Web.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════ TOKENS ═══════════════════════════════ */
+:root {
+  --bg: #0a0f1c; --bg-panel: #111a2e; --bg-panel-alt: #0d1526; --bg-raised: #16213b;
+  --ink: #e9edf7; --ink-muted: #8b98b8; --ink-faint: #576082;
+  --accent: #e8a33d; --accent-soft: rgba(232,163,61,0.14); --accent-line: rgba(232,163,61,0.4);
+  --danger: #c1554a; --danger-soft: rgba(193,85,74,0.14);
+  --good: #5ba087; --good-soft: rgba(91,160,135,0.14);
+  --line: rgba(233,237,247,0.08);
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --maxw: 1200px;
+  --header-bg: rgba(10,15,28,0.88);
+  --transition: 0.22s ease;
+}
+[data-theme="light"] {
+  --bg: #f2f4fb; --bg-panel: #ffffff; --bg-panel-alt: #eaecf5; --bg-raised: #e2e6f2;
+  --ink: #0d1220; --ink-muted: #4a5578; --ink-faint: #9aa3bf;
+  --line: rgba(13,18,32,0.09);
+  --header-bg: rgba(242,244,251,0.92);
+}
+
+/* ═══════════════════════════════ RESET ════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--sans); line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  transition: background var(--transition), color var(--transition);
+}
+a { color: inherit; }
+::selection { background: var(--accent-soft); color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* ═══════════════════════════════ PAGE ENTER ════════════════════════════ */
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pageExit {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-16px); }
+}
+.page-enter { animation: pageEnter 0.45s cubic-bezier(0.22,1,0.36,1) both; }
+.page-exit  { animation: pageExit  0.28s ease forwards; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+/* ═══════════════════════════════ SCANLINES ═════════════════════════════ */
+.scanlines {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image: repeating-linear-gradient(180deg,
+    rgba(233,237,247,0.02) 0px, rgba(233,237,247,0.02) 1px, transparent 1px, transparent 3px);
+}
+[data-theme="light"] .scanlines { opacity: 0.25; }
+
+/* ═══════════════════════════════ LAYOUT ════════════════════════════════ */
+.wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+
+/* ═══════════════════════════════ HEADER ════════════════════════════════ */
+header {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--header-bg);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+  transition: background var(--transition);
+}
+.nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 13px 24px; max-width: var(--maxw); margin: 0 auto;
+}
+.brand {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--mono); font-weight: 600; font-size: 13.5px;
+  color: var(--ink); text-decoration: none;
+}
+.brand-mark { width: 20px; height: 20px; position: relative; flex-shrink: 0; }
+.brand-mark::before {
+  content:""; position:absolute; top:0; left:0; width:9px; height:9px;
+  border-top: 2px solid var(--accent); border-left: 2px solid var(--accent);
+}
+.brand-mark::after {
+  content:""; position:absolute; bottom:0; right:0; width:9px; height:9px;
+  border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent);
+}
+.nav-right { display: flex; align-items: center; gap: 14px; }
+.nav-back {
+  font-family: var(--mono); font-size: 12px; color: var(--ink-muted);
+  text-decoration: none; letter-spacing: 0.04em; transition: color 0.15s;
+}
+.nav-back:hover { color: var(--accent); }
+
+/* ─── Theme Toggle ─── */
+.theme-toggle {
+  width: 36px; height: 36px; border: 1px solid var(--line); background: var(--bg-panel);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  color: var(--ink-muted); font-size: 16px; transition: all 0.2s; padding: 0;
+}
+.theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ═══════════════════════════════ MAIN GRID ═════════════════════════════ */
+.demo-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 24px;
+  padding: 32px 0 64px;
+}
+@media (max-width: 900px) { .demo-layout { grid-template-columns: 1fr; } }
+
+/* ═══════════════════════════════ MODEL STATUS BAR ══════════════════════ */
+.model-bar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px; background: var(--bg-panel); border: 1px solid var(--line);
+  margin-bottom: 20px; font-family: var(--mono); font-size: 12.5px;
+}
+.model-led {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--ink-faint);
+  flex-shrink: 0; transition: background 0.3s;
+}
+.model-led.loading { background: var(--accent); animation: pulse 1s infinite; }
+.model-led.ready   { background: var(--good); }
+.model-led.error   { background: var(--danger); }
+#model-status-text { color: var(--ink-muted); flex: 1; }
+#model-backend { color: var(--accent); }
+
+/* ═══════════════════════════════ INPUT TABS ════════════════════════════ */
+.tab-bar {
+  display: flex; gap: 0; border-bottom: 1px solid var(--line); margin-bottom: 0;
+}
+.tab-btn {
+  font-family: var(--mono); font-size: 12.5px; letter-spacing: 0.04em;
+  padding: 10px 18px; border: none; background: none; color: var(--ink-muted);
+  cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  transition: all 0.15s;
+}
+.tab-btn:hover { color: var(--ink); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.tab-panel { display: none; padding: 20px 0; }
+.tab-panel.active { display: block; }
+
+/* ─── Drop Zone ─── */
+.drop-zone {
+  border: 2px dashed var(--line); padding: 48px 24px; text-align: center;
+  cursor: pointer; transition: all 0.2s; position: relative; background: var(--bg-panel-alt);
+}
+.drop-zone:hover, .drop-zone.drag-over {
+  border-color: var(--accent); background: var(--accent-soft);
+}
+.drop-zone input[type=file] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+.drop-icon { font-size: 36px; margin-bottom: 12px; display: block; }
+.drop-zone p { margin: 0; font-size: 13.5px; color: var(--ink-muted); }
+.drop-zone strong { color: var(--ink); }
+
+.paste-zone {
+  border: 2px dashed var(--line); padding: 48px 24px; text-align: center;
+  background: var(--bg-panel-alt); transition: all 0.2s;
+}
+.paste-zone.pasting { border-color: var(--accent); background: var(--accent-soft); }
+.paste-zone .shortcut {
+  display: inline-block; font-family: var(--mono); font-size: 22px; font-weight: 700;
+  color: var(--accent); margin-bottom: 12px; letter-spacing: 0.06em;
+}
+.paste-zone p { margin: 0; font-size: 13.5px; color: var(--ink-muted); }
+
+/* ═══════════════════════════════ CANVAS AREA ═══════════════════════════ */
+.canvas-area {
+  position: relative; background: var(--bg-panel); border: 1px solid var(--line);
+  min-height: 320px; display: flex; align-items: center; justify-content: center;
+  overflow: hidden; margin-top: 20px;
+}
+.canvas-placeholder {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  color: var(--ink-faint); font-family: var(--mono); font-size: 13px;
+}
+.canvas-placeholder svg { opacity: 0.3; }
+#output-img {
+  display: block; width: 100%; height: auto; max-height: 600px; object-fit: contain;
+}
+#output-video {
+  display: block; width: 100%; height: auto; max-height: 600px; object-fit: contain;
+}
+#output-canvas {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;
+}
+
+/* ─── Inference Controls ─── */
+.inf-controls {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px;
+}
+.btn {
+  font-family: var(--mono); font-size: 12.5px; letter-spacing: 0.02em;
+  padding: 10px 18px; border: 1px solid var(--accent-line);
+  display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+  text-decoration: none; transition: all 0.15s; background: none; color: var(--ink);
+}
+.btn-primary { background: var(--accent); color: #0a0f1c; font-weight: 700; border-color: var(--accent); }
+.btn-primary:hover { opacity: 0.88; }
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-danger { border-color: rgba(193,85,74,0.5); color: var(--danger); }
+.btn-danger:hover { background: var(--danger-soft); }
+.btn:disabled { opacity: 0.38; cursor: not-allowed; pointer-events: none; }
+
+.spinner {
+  width: 13px; height: 13px; border: 2px solid rgba(10,15,28,0.3);
+  border-top-color: #0a0f1c; border-radius: 50%;
+  animation: spin 0.7s linear infinite; display: none;
+}
+.btn-primary.running .spinner { display: inline-block; }
+.btn-primary.running .btn-label { display: none; }
+
+#inf-status {
+  font-family: var(--mono); font-size: 12px; color: var(--accent);
+  flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ─── Confidence Slider ─── */
+.conf-row {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--mono); font-size: 12px; color: var(--ink-muted); margin-top: 12px;
+}
+input[type=range] {
+  flex: 1; accent-color: var(--accent);
+}
+#conf-val { color: var(--ink); min-width: 36px; text-align: right; }
+
+/* ═══════════════════════════════ SIDEBAR ═══════════════════════════════ */
+.sidebar { display: flex; flex-direction: column; gap: 18px; }
+.side-card {
+  background: var(--bg-panel); border: 1px solid var(--line); padding: 18px;
+}
+.side-card h4 {
+  font-family: var(--mono); font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--accent); margin: 0 0 14px;
+}
+
+/* Detection stats */
+.stat-big { font-family: var(--mono); font-size: 40px; font-weight: 700; color: var(--ink); line-height: 1; }
+.stat-sub { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); text-transform: uppercase; margin-top: 4px; }
+.stat-row { display: flex; justify-content: space-between; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.stat-item { text-align: center; }
+.stat-item .val { font-family: var(--mono); font-size: 18px; font-weight: 600; color: var(--ink); }
+.stat-item .lbl { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); text-transform: uppercase; }
+
+/* Class breakdown */
+.class-list { display: flex; flex-direction: column; gap: 7px; }
+.cls-row { display: grid; grid-template-columns: 90px 1fr 28px; align-items: center; gap: 7px; }
+.cls-name { font-family: var(--mono); font-size: 11.5px; color: var(--ink-muted); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cls-track { height: 10px; background: var(--bg-panel-alt); overflow: hidden; }
+.cls-fill { height: 100%; background: var(--accent); transition: width 0.4s ease; }
+.cls-cnt { font-family: var(--mono); font-size: 11px; color: var(--ink); }
+
+/* Info card */
+.info-list { display: flex; flex-direction: column; gap: 8px; }
+.info-item { display: flex; justify-content: space-between; font-size: 13px; }
+.info-item .key { color: var(--ink-muted); }
+.info-item .val { font-family: var(--mono); color: var(--ink); }
+
+/* ═══════════════════════════════ VIDEO FPS BADGE ═══════════════════════ */
+.fps-badge {
+  position: absolute; top: 10px; right: 10px; z-index: 10;
+  font-family: var(--mono); font-size: 12px; background: rgba(10,15,28,0.75);
+  color: var(--accent); padding: 4px 10px; border: 1px solid var(--accent-line);
+  backdrop-filter: blur(4px); display: none;
+}
+
+footer {
+  border-top: 1px solid var(--line); padding: 28px 0; text-align: center;
+  font-family: var(--mono); font-size: 11.5px; color: var(--ink-faint);
+}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+</head>
+<body>
+<div class="scanlines" aria-hidden="true"></div>
+
+<header>
+  <nav class="nav">
+    <a href="index.html" class="brand" id="back-link">
+      <span class="brand-mark" aria-hidden="true"></span>VISDRONE // YOLO11n
+    </a>
+    <div class="nav-right">
+      <a href="index.html" class="nav-back" id="back-btn">← Back to Overview</a>
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light/dark mode" title="Toggle theme">☀️</button>
+    </div>
+  </nav>
+</header>
+
+<main class="wrap page-enter">
+
+  <!-- model status bar -->
+  <div style="height:28px"></div>
+  <div class="model-bar">
+    <div class="model-led loading" id="model-led"></div>
+    <span id="model-status-text">Loading YOLO11n ONNX model…</span>
+    <span id="model-backend"></span>
+  </div>
+
+  <div class="demo-layout">
+
+    <!-- ── LEFT: input + canvas ── -->
+    <div>
+      <!-- Tab bar -->
+      <div class="tab-bar" role="tablist">
+        <button class="tab-btn active" role="tab" data-tab="upload" id="tab-upload">📁 Upload</button>
+        <button class="tab-btn" role="tab" data-tab="paste"  id="tab-paste">📋 Paste</button>
+        <button class="tab-btn" role="tab" data-tab="drop"   id="tab-drop">⬇️ Drag & Drop</button>
+      </div>
+
+      <!-- Upload panel -->
+      <div class="tab-panel active" id="panel-upload">
+        <div class="drop-zone" id="upload-zone">
+          <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/avi">
+          <span class="drop-icon">🖼️</span>
+          <p><strong>Click to choose a file</strong> — images (JPG, PNG, WebP) or video (MP4, WebM)</p>
+        </div>
+      </div>
+
+      <!-- Paste panel -->
+      <div class="tab-panel" id="panel-paste">
+        <div class="paste-zone" id="paste-zone">
+          <span class="shortcut">Ctrl+V</span>
+          <p>Copy any aerial image to your clipboard, then paste it here.<br>Works with screenshots and images copied from Google Maps, etc.</p>
+        </div>
+      </div>
+
+      <!-- Drag & Drop panel -->
+      <div class="tab-panel" id="panel-drop">
+        <div class="drop-zone" id="drag-zone" style="pointer-events:all;">
+          <span class="drop-icon">🎯</span>
+          <p><strong>Drag an image or video</strong> and drop it anywhere on this panel.</p>
+        </div>
+      </div>
+
+      <!-- Canvas area -->
+      <div class="canvas-area" id="canvas-area">
+        <div class="canvas-placeholder" id="canvas-placeholder">
+          <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+            <rect x="2" y="2" width="8" height="8" stroke="currentColor" stroke-width="2"/>
+            <rect x="46" y="2" width="8" height="8" stroke="currentColor" stroke-width="2"/>
+            <rect x="2" y="46" width="8" height="8" stroke="currentColor" stroke-width="2"/>
+            <rect x="46" y="46" width="8" height="8" stroke="currentColor" stroke-width="2"/>
+            <circle cx="28" cy="28" r="6" stroke="currentColor" stroke-width="2" stroke-dasharray="3 2"/>
+          </svg>
+          <span>No media loaded</span>
+        </div>
+        <img id="output-img" style="display:none;" alt="Uploaded drone image">
+        <video id="output-video" style="display:none;" muted playsinline></video>
+        <canvas id="output-canvas"></canvas>
+        <div class="fps-badge" id="fps-badge">-- FPS</div>
+      </div>
+
+      <!-- Controls -->
+      <div class="inf-controls">
+        <button class="btn btn-primary" id="run-btn" disabled>
+          <div class="spinner"></div>
+          <span class="btn-label">▶ Run Detection</span>
+        </button>
+        <button class="btn btn-danger" id="stop-btn" style="display:none;">■ Stop</button>
+        <button class="btn btn-ghost" id="clear-btn">✕ Clear</button>
+        <span id="inf-status">Load a model, then an image or video.</span>
+      </div>
+
+      <!-- Confidence slider -->
+      <div class="conf-row">
+        <span>Confidence</span>
+        <input type="range" id="conf-slider" min="5" max="95" value="25" step="1">
+        <span id="conf-val">0.25</span>
+      </div>
+    </div>
+
+    <!-- ── RIGHT: sidebar ── -->
+    <div class="sidebar">
+
+      <div class="side-card">
+        <h4>// detections</h4>
+        <div class="stat-big" id="stat-total">—</div>
+        <div class="stat-sub">objects found</div>
+        <div class="stat-row">
+          <div class="stat-item"><div class="val" id="stat-time">—</div><div class="lbl">ms / frame</div></div>
+          <div class="stat-item"><div class="val" id="stat-fps">—</div><div class="lbl">fps</div></div>
+          <div class="stat-item"><div class="val" id="stat-conf">0.25</div><div class="lbl">threshold</div></div>
+        </div>
+      </div>
+
+      <div class="side-card">
+        <h4>// class breakdown</h4>
+        <div class="class-list" id="class-list">
+          <span style="font-size:12px;color:var(--ink-faint);font-family:var(--mono);">Run detection to see results.</span>
+        </div>
+      </div>
+
+      <div class="side-card">
+        <h4>// model info</h4>
+        <div class="info-list">
+          <div class="info-item"><span class="key">Model</span><span class="val">YOLO11n</span></div>
+          <div class="info-item"><span class="key">Format</span><span class="val">ONNX</span></div>
+          <div class="info-item"><span class="key">Input</span><span class="val">640×640</span></div>
+          <div class="info-item"><span class="key">Classes</span><span class="val">10</span></div>
+          <div class="info-item"><span class="key">Dataset</span><span class="val">VisDrone2019</span></div>
+          <div class="info-item"><span class="key">Backend</span><span class="val" id="backend-val">loading…</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<footer>
+  <p>YOLO11n × VisDrone2019-DET · CSC354 Machine Learning · COMSATS Abbottabad · Inference: <span id="footer-backend">WebGPU / WASM</span></p>
+</footer>
+
+<script>
+/* ════════════════════ THEME ════════════════════ */
+const html = document.documentElement;
+const themeBtn = document.getElementById('theme-toggle');
+
+function applyTheme(t) {
+  html.setAttribute('data-theme', t);
+  themeBtn.textContent = t === 'dark' ? '☀️' : '🌙';
+  localStorage.setItem('theme', t);
+}
+applyTheme(localStorage.getItem('theme') || 'dark');
+themeBtn.addEventListener('click', () => applyTheme(html.dataset.theme === 'dark' ? 'light' : 'dark'));
+
+/* ════════════════════ PAGE TRANSITIONS ════════════════════ */
+function navigateTo(href) {
+  document.querySelector('main').classList.add('page-exit');
+  setTimeout(() => { window.location.href = href; }, 300);
+}
+document.getElementById('back-btn').addEventListener('click', e => { e.preventDefault(); navigateTo('index.html'); });
+document.getElementById('back-link').addEventListener('click', e => { e.preventDefault(); navigateTo('index.html'); });
+
+/* ════════════════════ ONNX MODEL ════════════════════ */
+const CLASSES = ["pedestrian","people","bicycle","car","van","truck","tricycle","awning-tricycle","bus","motor"];
+const COLORS  = ["#FF3838","#FF9D97","#FF701F","#FFB21D","#CFD231","#48F90A","#92CC17","#3DDB86","#1A9334","#00D4BB"];
+const MODEL_PATH = 'models/best.onnx';
+
+let session = null;
+let usedBackend = 'wasm';
+
+async function loadModel() {
+  const led    = document.getElementById('model-led');
+  const txt    = document.getElementById('model-status-text');
+  const bkEl   = document.getElementById('model-backend');
+  const bkVal  = document.getElementById('backend-val');
+  const footBk = document.getElementById('footer-backend');
+
+  led.className = 'model-led loading';
+  txt.textContent = 'Loading YOLO11n ONNX model…';
+
+  try {
+    session = await ort.InferenceSession.create(MODEL_PATH, { executionProviders: ['webgpu','wasm'] });
+    // detect which backend was actually used
+    try { await session.run({ [session.inputNames[0]]: new ort.Tensor('float32', new Float32Array(3*640*640), [1,3,640,640]) }); usedBackend = 'webgpu'; } catch { usedBackend = 'wasm'; }
+    led.className = 'model-led ready';
+    txt.textContent = 'Model ready';
+    bkEl.textContent = usedBackend === 'webgpu' ? '[ WebGPU 🚀 ]' : '[ WASM ]';
+    bkVal.textContent = usedBackend === 'webgpu' ? 'WebGPU 🚀' : 'WASM (CPU)';
+    footBk.textContent = usedBackend === 'webgpu' ? 'WebGPU' : 'WASM';
+    runBtn.disabled = !currentMedia;
+  } catch(e) {
+    led.className = 'model-led error';
+    txt.textContent = 'Model load failed: ' + e.message;
+    console.error(e);
+  }
+}
+
+/* ════════════════════ STATE ════════════════════ */
+let currentMedia = null; // { type:'image'|'video', el: HTMLElement }
+let videoLoop    = null;
+let frameCount   = 0;
+let fpsT0        = 0;
+const runBtn  = document.getElementById('run-btn');
+const stopBtn = document.getElementById('stop-btn');
+const clearBtn= document.getElementById('clear-btn');
+const status  = document.getElementById('inf-status');
+const confSlider = document.getElementById('conf-slider');
+const confVal    = document.getElementById('conf-val');
+const fpsBadge   = document.getElementById('fps-badge');
+
+confSlider.addEventListener('input', () => {
+  confVal.textContent = (confSlider.value/100).toFixed(2);
+  document.getElementById('stat-conf').textContent = (confSlider.value/100).toFixed(2);
+});
+
+/* ════════════════════ MEDIA LOADING ════════════════════ */
+const imgEl   = document.getElementById('output-img');
+const videoEl = document.getElementById('output-video');
+const canvas  = document.getElementById('output-canvas');
+const placeholder = document.getElementById('canvas-placeholder');
+
+function setImage(src) {
+  stopVideo();
+  imgEl.src = src;
+  imgEl.style.display = 'block';
+  videoEl.style.display = 'none';
+  fpsBadge.style.display = 'none';
+  placeholder.style.display = 'none';
+  canvas.width = 0; canvas.height = 0;
+  currentMedia = { type: 'image', el: imgEl };
+  status.textContent = "Image loaded. Press ▶ Run Detection.";
+  runBtn.disabled = !session;
+}
+
+function setVideo(src) {
+  stopVideo();
+  videoEl.src = src;
+  videoEl.style.display = 'block';
+  imgEl.style.display = 'none';
+  placeholder.style.display = 'none';
+  videoEl.load();
+  currentMedia = { type: 'video', el: videoEl };
+  status.textContent = "Video loaded. Press ▶ Run Detection to start frame-by-frame inference.";
+  runBtn.disabled = !session;
+}
+
+function loadFile(file) {
+  const url = URL.createObjectURL(file);
+  if (file.type.startsWith('video/')) setVideo(url);
+  else setImage(url);
+}
+
+function loadDataUrl(dataUrl) { setImage(dataUrl); }
+
+/* ════════════════════ TABS ════════════════════ */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* ═══ Upload ═══ */
+document.getElementById('file-input').addEventListener('change', e => {
+  if (e.target.files[0]) loadFile(e.target.files[0]);
+});
+
+/* ═══ Paste ═══ */
+document.addEventListener('paste', e => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      const pz = document.getElementById('paste-zone');
+      pz.classList.add('pasting');
+      setTimeout(() => pz.classList.remove('pasting'), 800);
+      const reader = new FileReader();
+      reader.onload = ev => loadDataUrl(ev.target.result);
+      reader.readAsDataURL(item.getAsFile());
+      // switch to paste tab for feedback
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('tab-paste').classList.add('active');
+      document.getElementById('panel-paste').classList.add('active');
+      return;
+    }
+  }
+});
+
+/* ═══ Drag & Drop ═══ */
+const dragZone = document.getElementById('drag-zone');
+const bodyEl   = document.body;
+['dragenter','dragover'].forEach(ev => {
+  bodyEl.addEventListener(ev, e => { e.preventDefault(); dragZone.classList.add('drag-over'); });
+});
+['dragleave','drop'].forEach(ev => {
+  bodyEl.addEventListener(ev, () => dragZone.classList.remove('drag-over'));
+});
+bodyEl.addEventListener('drop', e => {
+  e.preventDefault();
+  const file = e.dataTransfer?.files[0];
+  if (file) loadFile(file);
+});
+
+/* ════════════════════ INFERENCE ════════════════════ */
+function getConf() { return confSlider.value / 100; }
+
+function iou(a, b) {
+  const ix1=Math.max(a[0],b[0]), iy1=Math.max(a[1],b[1]), ix2=Math.min(a[2],b[2]), iy2=Math.min(a[3],b[3]);
+  const inter = Math.max(0,ix2-ix1)*Math.max(0,iy2-iy1);
+  return inter/((a[2]-a[0])*(a[3]-a[1])+(b[2]-b[0])*(b[3]-b[1])-inter);
+}
+function nms(boxes, thr) {
+  boxes.sort((a,b)=>b.s-a.s);
+  const out=[];
+  for(const b of boxes){ if(!out.some(o=>o.c===b.c&&iou(o.b,b.b)>thr)) out.push(b); }
+  return out;
+}
+
+async function infer(source) {
+  const SZ = 640;
+  const off = document.createElement('canvas'); off.width=SZ; off.height=SZ;
+  const ctx = off.getContext('2d',{willReadFrequently:true});
+
+  const sw = source.naturalWidth || source.videoWidth  || source.width  || SZ;
+  const sh = source.naturalHeight|| source.videoHeight || source.height || SZ;
+  const sc = Math.min(SZ/sw, SZ/sh);
+  const nw = sw*sc, nh = sh*sc;
+  const px = (SZ-nw)/2, py = (SZ-nh)/2;
+
+  ctx.fillStyle='#727272'; ctx.fillRect(0,0,SZ,SZ);
+  ctx.drawImage(source, px, py, nw, nh);
+
+  const imgData = ctx.getImageData(0,0,SZ,SZ).data;
+  const f32 = new Float32Array(3*SZ*SZ);
+  for(let i=0;i<SZ*SZ;i++){ f32[i]=imgData[i*4]/255; f32[SZ*SZ+i]=imgData[i*4+1]/255; f32[2*SZ*SZ+i]=imgData[i*4+2]/255; }
+
+  const tensor  = new ort.Tensor('float32', f32, [1,3,SZ,SZ]);
+  const results = await session.run({[session.inputNames[0]]: tensor});
+  const data    = results[session.outputNames[0]].data;
+  const nAnc    = data.length / (4+CLASSES.length);
+
+  const boxes=[];
+  const conf = getConf();
+  for(let i=0;i<nAnc;i++){
+    let ms=0, mc=-1;
+    for(let c=0;c<CLASSES.length;c++){ const s=data[(4+c)*nAnc+i]; if(s>ms){ms=s;mc=c;} }
+    if(ms>conf){
+      const cx=data[0*nAnc+i],cy=data[1*nAnc+i],w=data[2*nAnc+i],h=data[3*nAnc+i];
+      const x1=cx-w/2, y1=cy-h/2, x2=cx+w/2, y2=cy+h/2;
+      boxes.push({ b:[(x1-px)/sc,(y1-py)/sc,(x2-px)/sc,(y2-py)/sc], s:ms, c:mc });
+    }
+  }
+  return nms(boxes, 0.45);
+}
+
+function draw(boxes, srcW, srcH) {
+  const displayEl = imgEl.style.display!=='none' ? imgEl : videoEl;
+  canvas.width  = displayEl.offsetWidth  || displayEl.width  || srcW;
+  canvas.height = displayEl.offsetHeight || displayEl.height || srcH;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const sx = canvas.width/srcW, sy = canvas.height/srcH;
+
+  boxes.forEach(({b,s,c})=>{
+    const [x1,y1,x2,y2]=b;
+    const col = COLORS[c%COLORS.length];
+    const cx1=x1*sx, cy1=y1*sy, cw=(x2-x1)*sx, ch=(y2-y1)*sy;
+    ctx.strokeStyle=col; ctx.lineWidth=1.8;
+    ctx.strokeRect(cx1,cy1,cw,ch);
+    const label=`${CLASSES[c]} ${(s*100).toFixed(0)}%`;
+    ctx.font='bold 11px monospace';
+    const tw=ctx.measureText(label).width;
+    ctx.fillStyle=col; ctx.fillRect(cx1,Math.max(0,cy1-18),tw+6,18);
+    ctx.fillStyle='#000'; ctx.fillText(label,cx1+3,Math.max(12,cy1-5));
+  });
+}
+
+function updateStats(boxes, ms) {
+  document.getElementById('stat-total').textContent = boxes.length;
+  document.getElementById('stat-time').textContent  = ms.toFixed(0);
+  // Class breakdown
+  const counts={};
+  boxes.forEach(b=>{ const n=CLASSES[b.c]; counts[n]=(counts[n]||0)+1; });
+  const max=Math.max(1,...Object.values(counts));
+  const cl=document.getElementById('class-list');
+  if(Object.keys(counts).length===0){
+    cl.innerHTML='<span style="font-size:12px;color:var(--ink-faint);font-family:var(--mono);">No detections.</span>';
+    return;
+  }
+  cl.innerHTML='';
+  Object.entries(counts).sort((a,b)=>b[1]-a[1]).forEach(([name,cnt])=>{
+    const row=document.createElement('div'); row.className='cls-row';
+    row.innerHTML=`<span class="cls-name">${name}</span><span class="cls-track"><span class="cls-fill" style="width:${(cnt/max*100).toFixed(0)}%"></span></span><span class="cls-cnt">${cnt}</span>`;
+    cl.appendChild(row);
+  });
+}
+
+/* ─── Image inference ─── */
+async function runImage() {
+  runBtn.classList.add('running'); runBtn.disabled=true;
+  status.textContent='Running inference…';
+  const t0=performance.now();
+  try {
+    const boxes = await infer(imgEl);
+    const ms = performance.now()-t0;
+    draw(boxes, imgEl.naturalWidth, imgEl.naturalHeight);
+    updateStats(boxes, ms);
+    document.getElementById('stat-fps').textContent = (1000/ms).toFixed(1);
+    status.textContent=`Done — ${boxes.length} objects detected in ${ms.toFixed(0)}ms`;
+  } catch(e) { status.textContent='Error: '+e.message; console.error(e); }
+  runBtn.classList.remove('running'); runBtn.disabled=false;
+}
+
+/* ─── Video inference loop ─── */
+async function runVideoLoop() {
+  const vid = videoEl;
+  if (vid.paused) vid.play().catch(()=>{});
+  fpsBadge.style.display='block';
+  stopBtn.style.display='inline-flex'; runBtn.style.display='none';
+  frameCount=0; fpsT0=performance.now();
+
+  async function frame() {
+    if (!videoLoop) return;
+    if (vid.readyState < 2) { videoLoop=requestAnimationFrame(frame); return; }
+    const t0=performance.now();
+    const boxes = await infer(vid);
+    const ms=performance.now()-t0;
+    draw(boxes, vid.videoWidth, vid.videoHeight);
+    updateStats(boxes, ms);
+    frameCount++;
+    const elapsed=(performance.now()-fpsT0)/1000;
+    const fps=(frameCount/elapsed).toFixed(1);
+    fpsBadge.textContent=`${fps} FPS`;
+    document.getElementById('stat-fps').textContent=fps;
+    document.getElementById('stat-time').textContent=ms.toFixed(0);
+    status.textContent=`Frame ${frameCount} — ${boxes.length} objects — ${ms.toFixed(0)}ms`;
+    videoLoop=requestAnimationFrame(frame);
+  }
+  videoLoop=requestAnimationFrame(frame);
+}
+
+function stopVideo() {
+  if (videoLoop) { cancelAnimationFrame(videoLoop); videoLoop=null; }
+  videoEl.pause();
+  fpsBadge.style.display='none';
+  stopBtn.style.display='none'; runBtn.style.display='inline-flex';
+}
+
+/* ─── Button wiring ─── */
+runBtn.addEventListener('click', () => {
+  if (!session || !currentMedia) return;
+  if (currentMedia.type==='image') runImage();
+  else runVideoLoop();
+});
+stopBtn.addEventListener('click', stopVideo);
+clearBtn.addEventListener('click', () => {
+  stopVideo();
+  imgEl.src=''; imgEl.style.display='none';
+  videoEl.src=''; videoEl.style.display='none';
+  placeholder.style.display='flex';
+  const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width,canvas.height);
+  currentMedia=null; runBtn.disabled=true;
+  document.getElementById('stat-total').textContent='—';
+  document.getElementById('stat-time').textContent='—';
+  document.getElementById('stat-fps').textContent='—';
+  document.getElementById('class-list').innerHTML='<span style="font-size:12px;color:var(--ink-faint);font-family:var(--mono);">Run detection to see results.</span>';
+  status.textContent='Load a model, then an image or video.';
+});
+
+/* ════════════════════ BOOT ════════════════════ */
+window.addEventListener('load', loadModel);
+</script>
+</body>
+</html>
