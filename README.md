@@ -6,7 +6,6 @@ An FYP project for detecting objects in aerial drone imagery using YOLOv8.
 
 - Landing page: GitHub Pages site at `https://uzaairmalik.github.io/Autonom/`
 - Primary demo: Streamlit app for image and video inference
-- Static fallback: `demo.html` for quick browser-based image checks
 
 ## Demo Flow
 
