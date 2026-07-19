@@ -1,805 +1,739 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Live Demo — YOLO11n Aerial Object Detection</title>
-<meta name="description" content="Interactive browser-based aerial object detection powered by YOLO11n ONNX Runtime Web.">
+<title>Live Demo — YOLO11n on VisDrone2019</title>
+<meta name="description" content="Run the trained YOLO11n aerial detector on your own images and video, entirely in your browser.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root {
-  --bg: #0a0f1c; --bg-panel: #111a2e; --bg-panel-alt: #0d1526; --bg-raised: #16213b;
-  --ink: #e9edf7; --ink-muted: #8b98b8; --ink-faint: #576082;
-  --accent: #e8a33d; --accent-soft: rgba(232,163,61,0.14); --accent-line: rgba(232,163,61,0.4);
-  --danger: #c1554a; --danger-soft: rgba(193,85,74,0.14);
-  --good: #5ba087; --good-soft: rgba(91,160,135,0.14);
-  --line: rgba(247, 233, 246, 0.08);
-  --mono: 'IBM Plex Mono', ui-monospace, monospace;
-  --sans: 'IBM Plex Sans', system-ui, sans-serif;
-  --maxw: 1200px;
-  --header-bg: rgba(10,15,28,0.88);
-  --transition: 0.22s ease;
-}
-[data-theme="light"] {
-  --bg: #f2f4fb; --bg-panel: #ffffff; --bg-panel-alt: #eaecf5; --bg-raised: #e2e6f2;
-  --ink: #0d1220; --ink-muted: #4a5578; --ink-faint: #9aa3bf;
-  --line: rgba(13,18,32,0.09);
-  --header-bg: rgba(242,244,251,0.92);
-}
-*, *::before, *::after { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-body {
-  margin: 0; background: var(--bg); color: var(--ink);
-  font-family: var(--sans); line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-  transition: background var(--transition), color var(--transition);
-}
-a { color: inherit; }
-::selection { background: var(--accent-soft); color: var(--accent); }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  :root{
+    --bg: #0a0f1c;
+    --bg-panel: #111a2e;
+    --bg-panel-alt: #0d1526;
+    --bg-raised: #16213b;
+    --ink: #e9edf7;
+    --ink-muted: #8b98b8;
+    --ink-faint: #576082;
+    --accent: #e8a33d;
+    --accent-soft: rgba(232,163,61,0.14);
+    --accent-line: rgba(232,163,61,0.4);
+    --danger: #c1554a;
+    --danger-soft: rgba(193,85,74,0.14);
+    --good: #5ba087;
+    --good-soft: rgba(91,160,135,0.14);
+    --line: rgba(233,237,247,0.08);
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --sans: 'IBM Plex Sans', system-ui, sans-serif;
+    --maxw: 1120px;
+  }
+  *{ box-sizing: border-box; }
+  @media (prefers-reduced-motion: reduce){ *{ animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+  body{ margin:0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height:1.6; -webkit-font-smoothing: antialiased; }
+  a{ color: inherit; }
+  :focus-visible{ outline: 2px solid var(--accent); outline-offset: 3px; }
+  .wrap{ max-width: var(--maxw); margin:0 auto; padding: 0 28px; }
+  .scanlines{ position: fixed; inset:0; z-index:0; pointer-events:none;
+    background-image: repeating-linear-gradient(180deg, rgba(233,237,247,0.025) 0px, rgba(233,237,247,0.025) 1px, transparent 1px, transparent 3px);
+    opacity:0.5; }
 
-@keyframes pageEnter { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes pageExit  { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-16px); } }
-.page-enter { animation: pageEnter 0.45s cubic-bezier(0.22,1,0.36,1) both; }
-.page-exit  { animation: pageExit  0.28s ease forwards; }
+  h1,h2,h3{ font-family: var(--mono); font-weight:600; margin:0; color: var(--ink); letter-spacing:-0.01em; }
+  h2{ font-size: clamp(22px,3vw,28px); }
+  h3{ font-size:15px; }
+  p{ color: var(--ink-muted); margin:0 0 12px; font-size:15px; }
 
-@keyframes spin { to { transform: rotate(360deg); } }
-@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+  .bbox{ position: relative; }
+  .bbox::before{ content:""; position:absolute; top:-1px; left:-1px; width:14px; height:14px; border-top:2px solid var(--accent); border-left:2px solid var(--accent); opacity:0.9; }
+  .bbox::after{ content:""; position:absolute; bottom:-1px; right:-1px; width:14px; height:14px; border-bottom:2px solid var(--accent); border-right:2px solid var(--accent); opacity:0.9; }
 
-.scanlines {
-  position: fixed; inset: 0; z-index: 0; pointer-events: none;
-  background-image: repeating-linear-gradient(180deg, rgba(233,237,247,0.02) 0px, rgba(233,237,247,0.02) 1px, transparent 1px, transparent 3px);
-}
-[data-theme="light"] .scanlines { opacity: 0.25; }
+  .eyebrow{ font-family: var(--mono); font-size:12.5px; letter-spacing:0.14em; text-transform:uppercase; color: var(--accent); margin:0 0 10px; }
+  .eyebrow::before{ content:"// "; color: var(--ink-faint); }
 
-.wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+  header{ position: sticky; top:0; z-index:50; background: rgba(10,15,28,0.86); backdrop-filter: blur(10px); border-bottom:1px solid var(--line); }
+  .nav{ display:flex; align-items:center; justify-content:space-between; padding:14px 28px; max-width: var(--maxw); margin:0 auto; }
+  .brand{ display:flex; align-items:center; gap:10px; font-family: var(--mono); font-weight:600; font-size:14px; text-decoration:none; }
+  .brand-mark{ width:20px; height:20px; position:relative; flex-shrink:0; }
+  .brand-mark::before{ content:""; position:absolute; top:0; left:0; width:9px; height:9px; border-top:2px solid var(--accent); border-left:2px solid var(--accent); }
+  .brand-mark::after{ content:""; position:absolute; bottom:0; right:0; width:9px; height:9px; border-bottom:2px solid var(--accent); border-right:2px solid var(--accent); }
+  .back-link{ font-family: var(--mono); font-size:12.5px; color: var(--ink-muted); text-decoration:none; }
+  .back-link:hover{ color: var(--accent); }
 
-header {
-  position: sticky; top: 0; z-index: 100;
-  background: var(--header-bg);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--line);
-  transition: background var(--transition);
-}
-.nav {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 13px 24px; max-width: var(--maxw); margin: 0 auto;
-}
-.brand {
-  display: flex; align-items: center; gap: 10px;
-  font-family: var(--mono); font-weight: 600; font-size: 13.5px;
-  color: var(--ink); text-decoration: none;
-}
-.brand-mark { width: 20px; height: 20px; position: relative; flex-shrink: 0; }
-.brand-mark::before { content:""; position:absolute; top:0; left:0; width:9px; height:9px; border-top:2px solid var(--accent); border-left:2px solid var(--accent); }
-.brand-mark::after  { content:""; position:absolute; bottom:0; right:0; width:9px; height:9px; border-bottom:2px solid var(--accent); border-right:2px solid var(--accent); }
-.nav-right { display: flex; align-items: center; gap: 14px; }
-.nav-back {
-  font-family: var(--mono); font-size: 12px; color: var(--ink-muted);
-  text-decoration: none; letter-spacing: 0.04em; transition: color 0.15s;
-}
-.nav-back:hover { color: var(--accent); }
+  main{ position:relative; z-index:1; }
+  .page-head{ padding: 56px 0 36px; border-bottom:1px solid var(--line); }
+  .page-head .hero-tag{ font-family: var(--mono); font-size:12px; color: var(--accent); letter-spacing:0.1em; border:1px solid var(--accent-line); display:inline-block; padding:5px 10px; margin-bottom:18px; background: var(--accent-soft); }
+  .page-head h1{ font-size: clamp(28px,4.4vw,42px); line-height:1.1; max-width:760px; margin-bottom:14px; }
+  .page-head p{ max-width:600px; font-size:16px; }
 
-.theme-toggle {
-  width: 36px; height: 36px; border: 1px solid var(--line); background: var(--bg-panel);
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-  color: var(--ink-muted); font-size: 16px; transition: all 0.2s; padding: 0;
-}
-.theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+  section{ padding: 48px 0; border-bottom:1px solid var(--line); }
+  section:last-of-type{ border-bottom:none; }
 
-.demo-layout {
-  display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 24px;
-  padding: 32px 0 64px;
-}
-@media (max-width: 900px) { .demo-layout { grid-template-columns: 1fr; } }
+  /* status bar */
+  .status-bar{
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    padding:14px 18px; border:1px solid var(--line); background: var(--bg-panel); margin-bottom: 28px;
+  }
+  .status-dot{ width:9px; height:9px; border-radius:50%; background: var(--ink-faint); flex-shrink:0; }
+  .status-dot.loading{ background: var(--accent); animation: pulse 1.2s infinite; }
+  .status-dot.ready{ background: var(--good); }
+  .status-dot.error{ background: var(--danger); }
+  @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:0.35; } }
+  .status-text{ font-family: var(--mono); font-size:13px; color: var(--ink); flex: 1; min-width:200px; }
+  .status-text .sub{ color: var(--ink-muted); font-weight:400; }
+  .status-actions button{
+    font-family: var(--mono); font-size:12px; background:transparent; color: var(--ink-muted);
+    border:1px solid var(--line); padding:7px 12px; cursor:pointer; transition: all 0.15s;
+  }
+  .status-actions button:hover{ border-color: var(--accent); color: var(--accent); }
 
-.model-bar {
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 16px; background: var(--bg-panel); border: 1px solid var(--line);
-  margin-bottom: 20px; font-family: var(--mono); font-size: 12.5px;
-}
-.model-led { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-faint); flex-shrink: 0; transition: background 0.3s; }
-.model-led.loading { background: var(--accent); animation: pulse 1s infinite; }
-.model-led.ready   { background: var(--good); }
-.model-led.error   { background: var(--danger); }
-#model-status-text { color: var(--ink-muted); flex: 1; }
-#model-backend { color: var(--accent); }
+  .setup-card{
+    border:1px solid var(--danger); background: var(--danger-soft); padding:22px 24px; margin-bottom:28px; display:none;
+  }
+  .setup-card.show{ display:block; }
+  .setup-card h3{ color: var(--ink); margin-bottom:10px; }
+  .setup-card p{ font-size:14px; margin-bottom:10px; }
+  .setup-card pre{
+    background: var(--bg-panel-alt); border:1px solid var(--line); padding:14px 16px; overflow-x:auto;
+    font-family: var(--mono); font-size:12.5px; color: var(--ink); margin: 0 0 12px;
+  }
+  .setup-card ol{ color: var(--ink-muted); font-size:14px; padding-left:20px; margin:0; }
+  .setup-card li{ margin-bottom:6px; }
+  .setup-card code{ color: var(--accent); }
 
-.tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--line); margin-bottom: 0; }
-.tab-btn {
-  font-family: var(--mono); font-size: 12.5px; letter-spacing: 0.04em;
-  padding: 10px 18px; border: none; background: none; color: var(--ink-muted);
-  cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s;
-}
-.tab-btn:hover { color: var(--ink); }
-.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  /* mode tabs */
+  .tabs{ display:flex; gap:0; border:1px solid var(--line); width:fit-content; margin-bottom:24px; }
+  .tab-btn{
+    font-family: var(--mono); font-size:13px; padding:10px 22px; background:transparent; color: var(--ink-muted);
+    border:none; cursor:pointer; border-right:1px solid var(--line); transition: all 0.15s;
+  }
+  .tab-btn:last-child{ border-right:none; }
+  .tab-btn.active{ background: var(--accent); color: var(--bg); font-weight:600; }
+  .tab-btn:not(.active):hover{ color: var(--ink); background: var(--bg-panel); }
 
-.tab-panel { display: none; padding: 20px 0; }
-.tab-panel.active { display: block; }
+  .controls-row{ display:flex; gap:20px; flex-wrap:wrap; align-items:center; margin-bottom: 24px; }
+  .control{ display:flex; flex-direction:column; gap:6px; }
+  .control label{ font-family: var(--mono); font-size:11.5px; color: var(--ink-muted); text-transform:uppercase; letter-spacing:0.04em; }
+  .control .val{ color: var(--accent); }
+  input[type="range"]{ width:180px; accent-color: var(--accent); }
 
-.drop-zone {
-  border: 2px dashed var(--line); padding: 48px 24px; text-align: center;
-  cursor: pointer; transition: all 0.2s; position: relative; background: var(--bg-panel-alt);
-}
-.drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: var(--accent-soft); }
-.drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
-.drop-icon { font-size: 36px; margin-bottom: 12px; display: block; }
-.drop-zone p { margin: 0; font-size: 13.5px; color: var(--ink-muted); }
-.drop-zone strong { color: var(--ink); }
+  /* dropzone */
+  .dropzone{
+    border:2px dashed var(--line); background: var(--bg-panel); padding:44px 24px; text-align:center;
+    cursor:pointer; transition: all 0.15s; margin-bottom: 24px;
+  }
+  .dropzone.drag{ border-color: var(--accent); background: var(--accent-soft); }
+  .dropzone h3{ margin-bottom:6px; }
+  .dropzone p{ font-size:13.5px; margin-bottom:0; }
+  .dropzone .dz-icon{ font-family: var(--mono); font-size:26px; color: var(--accent); margin-bottom:12px; }
+  .dropzone input[type="file"]{ display:none; }
+  .dz-kbd{ display:inline-block; font-family: var(--mono); font-size:11px; border:1px solid var(--line); padding:2px 6px; color: var(--ink-muted); margin: 0 2px; }
 
-.paste-zone {
-  border: 2px dashed var(--line); padding: 48px 24px; text-align: center;
-  background: var(--bg-panel-alt); transition: all 0.2s;
-}
-.paste-zone.pasting { border-color: var(--accent); background: var(--accent-soft); }
-.paste-zone .shortcut {
-  display: inline-block; font-family: var(--mono); font-size: 22px; font-weight: 700;
-  color: var(--accent); margin-bottom: 12px; letter-spacing: 0.06em;
-}
-.paste-zone p { margin: 0; font-size: 13.5px; color: var(--ink-muted); }
+  /* stage (preview + canvas overlay) */
+  .stage-wrap{ display:none; }
+  .stage-wrap.show{ display:block; }
+  .stage{
+    position:relative; width:100%; background: var(--bg-panel-alt); border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center; overflow:hidden; min-height: 240px;
+  }
+  .stage img, .stage video{ display:block; max-width:100%; height:auto; }
+  .stage canvas{ position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
 
-.canvas-area {
-  position: relative; background: var(--bg-panel); border: 1px solid var(--line);
-  min-height: 320px; display: flex; align-items: center; justify-content: center;
-  overflow: hidden; margin-top: 20px;
-}
-.canvas-placeholder {
-  display: flex; flex-direction: column; align-items: center; gap: 12px;
-  color: var(--ink-faint); font-family: var(--mono); font-size: 13px;
-}
-.canvas-placeholder svg { opacity: 0.3; }
-#output-img, #output-video { display: block; width: 100%; height: auto; max-height: 600px; object-fit: contain; }
-#output-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+  .stage-actions{ display:flex; gap:12px; flex-wrap:wrap; margin-top:18px; }
+  .btn{
+    font-family: var(--mono); font-size:13px; letter-spacing:0.03em; text-decoration:none;
+    padding:11px 18px; border:1px solid var(--accent-line); display:inline-flex; align-items:center; gap:8px;
+    background:transparent; color: var(--ink); cursor:pointer; transition: all 0.15s;
+  }
+  .btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .btn-primary{ background: var(--accent); color: var(--bg); font-weight:600; border-color: var(--accent); }
+  .btn-primary:hover:not(:disabled){ opacity:0.88; }
+  .btn-ghost:hover:not(:disabled){ border-color: var(--accent); color: var(--accent); }
+  .btn.active{ background: var(--good-soft); border-color: var(--good); color: var(--good); }
 
-.inf-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
-.btn {
-  font-family: var(--mono); font-size: 12.5px; letter-spacing: 0.02em;
-  padding: 10px 18px; border: 1px solid var(--accent-line);
-  display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
-  text-decoration: none; transition: all 0.15s; background: none; color: var(--ink);
-}
-.btn-primary { background: var(--accent); color: #0a0f1c; font-weight: 700; border-color: var(--accent); }
-.btn-primary:hover { opacity: 0.88; }
-.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
-.btn-danger { border-color: rgba(193,85,74,0.5); color: var(--danger); }
-.btn-danger:hover { background: var(--danger-soft); }
-.btn:disabled { opacity: 0.38; cursor: not-allowed; pointer-events: none; }
+  .live-fps{
+    font-family: var(--mono); font-size:12px; color: var(--accent); border:1px solid var(--accent-line);
+    padding:9px 14px; display:none; align-items:center; gap:8px; background: var(--accent-soft);
+  }
+  .live-fps.show{ display:inline-flex; }
 
-.spinner {
-  width: 13px; height: 13px; border: 2px solid rgba(10,15,28,0.3);
-  border-top-color: #0a0f1c; border-radius: 50%;
-  animation: spin 0.7s linear infinite; display: none;
-}
-.btn-primary.running .spinner { display: inline-block; }
-.btn-primary.running .btn-label { display: none; }
+  /* results panel */
+  .results-panel{ display:none; margin-top:28px; }
+  .results-panel.show{ display:grid; grid-template-columns: 1.3fr 1fr; gap:20px; }
+  @media (max-width:760px){ .results-panel.show{ grid-template-columns:1fr; } }
+  .results-list, .results-stats{ border:1px solid var(--line); background: var(--bg-panel); padding:18px 20px; }
+  .results-list h3, .results-stats h3{ margin-bottom:14px; }
+  .det-row{ display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); font-family: var(--mono); font-size:13px; }
+  .det-row:last-child{ border-bottom:none; }
+  .det-class{ color: var(--ink); }
+  .det-conf{ color: var(--accent); }
+  .empty-note{ color: var(--ink-faint); font-family: var(--mono); font-size:12.5px; }
+  .stat-chip{ display:flex; justify-content:space-between; padding:7px 0; font-family: var(--mono); font-size:12.5px; color: var(--ink-muted); border-bottom:1px solid var(--line); }
+  .stat-chip:last-child{ border-bottom:none; }
+  .stat-chip .n{ color: var(--ink); }
 
-#inf-status {
-  font-family: var(--mono); font-size: 12px; color: var(--accent);
-  flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-
-.conf-row { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12px; color: var(--ink-muted); margin-top: 12px; }
-input[type=range] { flex: 1; accent-color: var(--accent); }
-#conf-val { color: var(--ink); min-width: 36px; text-align: right; }
-
-.sidebar { display: flex; flex-direction: column; gap: 18px; }
-.side-card { background: var(--bg-panel); border: 1px solid var(--line); padding: 18px; }
-.side-card h4 {
-  font-family: var(--mono); font-size: 11px; text-transform: uppercase;
-  letter-spacing: 0.08em; color: var(--accent); margin: 0 0 14px;
-}
-.stat-big { font-family: var(--mono); font-size: 40px; font-weight: 700; color: var(--ink); line-height: 1; }
-.stat-sub { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); text-transform: uppercase; margin-top: 4px; }
-.stat-row { display: flex; justify-content: space-between; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
-.stat-item { text-align: center; }
-.stat-item .val { font-family: var(--mono); font-size: 18px; font-weight: 600; color: var(--ink); }
-.stat-item .lbl { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); text-transform: uppercase; }
-
-.class-list { display: flex; flex-direction: column; gap: 7px; }
-.cls-row { display: grid; grid-template-columns: 90px 1fr 28px; align-items: center; gap: 7px; }
-.cls-name { font-family: var(--mono); font-size: 11.5px; color: var(--ink-muted); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cls-track { height: 10px; background: var(--bg-panel-alt); overflow: hidden; }
-.cls-fill { height: 100%; background: var(--accent); transition: width 0.4s ease; }
-.cls-cnt { font-family: var(--mono); font-size: 11px; color: var(--ink); }
-
-.info-list { display: flex; flex-direction: column; gap: 8px; }
-.info-item { display: flex; justify-content: space-between; font-size: 13px; }
-.info-item .key { color: var(--ink-muted); }
-.info-item .val { font-family: var(--mono); color: var(--ink); }
-
-.fps-badge {
-  position: absolute; top: 10px; right: 10px; z-index: 10;
-  font-family: var(--mono); font-size: 12px; background: rgba(10,15,28,0.75);
-  color: var(--accent); padding: 4px 10px; border: 1px solid var(--accent-line);
-  backdrop-filter: blur(4px); display: none;
-}
-
-footer {
-  border-top: 1px solid var(--line); padding: 28px 0; text-align: center;
-  font-family: var(--mono); font-size: 11.5px; color: var(--ink-faint);
-}
+  footer{ padding:40px 0; text-align:center; }
+  footer p{ font-family: var(--mono); font-size:12px; color: var(--ink-faint); margin:0; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js"></script>
 </head>
 <body>
+
 <div class="scanlines" aria-hidden="true"></div>
 
 <header>
   <nav class="nav">
-    <a href="index.html" class="brand" id="back-link"><span class="brand-mark" aria-hidden="true"></span>VISDRONE // YOLO11n</a>
-    <div class="nav-right">
-      <a href="index.html" class="nav-back" id="back-btn">← Back to Overview</a>
-      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light/dark mode" title="Toggle theme">☀️</button>
-    </div>
+    <a href="./index.html" class="brand"><span class="brand-mark" aria-hidden="true"></span>VISDRONE // YOLO11n</a>
+    <a class="back-link" href="./index.html">&larr; Back to overview</a>
   </nav>
 </header>
 
-<main class="wrap page-enter">
-  <div style="height:28px"></div>
-  <div class="model-bar">
-    <div class="model-led loading" id="model-led"></div>
-    <span id="model-status-text">Loading YOLO11n ONNX model…</span>
-    <span id="model-backend"></span>
-  </div>
-
-  <div class="demo-layout">
-    <div>
-      <div class="tab-bar" role="tablist">
-        <button class="tab-btn active" role="tab" data-tab="upload" id="tab-upload">📁 Upload</button>
-        <button class="tab-btn" role="tab" data-tab="paste" id="tab-paste">📋 Paste</button>
-        <button class="tab-btn" role="tab" data-tab="drop" id="tab-drop">⬇️ Drag & Drop</button>
-      </div>
-
-      <div class="tab-panel active" id="panel-upload">
-        <div class="drop-zone" id="upload-zone">
-          <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/avi">
-          <span class="drop-icon">🖼️</span>
-          <p><strong>Click to choose a file</strong> — images (JPG, PNG, WebP) or video (MP4, WebM)</p>
-        </div>
-      </div>
-
-      <div class="tab-panel" id="panel-paste">
-        <div class="paste-zone" id="paste-zone">
-          <span class="shortcut">Ctrl+V</span>
-          <p>Copy any aerial image to your clipboard, then paste it here.<br>Works with screenshots and images copied from Google Maps, etc.</p>
-        </div>
-      </div>
-
-      <div class="tab-panel" id="panel-drop">
-        <div class="drop-zone" id="drag-zone" style="pointer-events:all;">
-          <span class="drop-icon">🎯</span>
-          <p><strong>Drag an image or video</strong> and drop it anywhere on this panel.</p>
-        </div>
-      </div>
-
-      <div class="canvas-area" id="canvas-area">
-        <div class="canvas-placeholder" id="canvas-placeholder">
-          <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
-            <rect x="2" y="2" width="8" height="8" stroke="currentColor" stroke-width="2"/>
-            <rect x="46" y="2" width="8" height="8" stroke="currentColor" stroke-width="2"/>
-            <rect x="2" y="46" width="8" height="8" stroke="currentColor" stroke-width="2"/>
-            <rect x="46" y="46" width="8" height="8" stroke="currentColor" stroke-width="2"/>
-            <circle cx="28" cy="28" r="6" stroke="currentColor" stroke-width="2" stroke-dasharray="3 2"/>
-          </svg>
-          <span>No media loaded</span>
-        </div>
-        <img id="output-img" style="display:none;" alt="Uploaded drone image">
-        <video id="output-video" style="display:none;" muted playsinline></video>
-        <canvas id="output-canvas"></canvas>
-        <div class="fps-badge" id="fps-badge">-- FPS</div>
-      </div>
-
-      <div class="inf-controls">
-        <button class="btn btn-primary" id="run-btn" disabled>
-          <div class="spinner"></div>
-          <span class="btn-label">▶ Run Detection</span>
-        </button>
-        <button class="btn btn-danger" id="stop-btn" style="display:none;">■ Stop</button>
-        <button class="btn btn-ghost" id="clear-btn">✕ Clear</button>
-        <span id="inf-status">Load a model, then an image or video.</span>
-      </div>
-
-      <div class="conf-row">
-        <span>Confidence</span>
-        <input type="range" id="conf-slider" min="5" max="95" value="25" step="1">
-        <span id="conf-val">0.25</span>
-      </div>
-    </div>
-
-    <div class="sidebar">
-      <div class="side-card">
-        <h4>// detections</h4>
-        <div class="stat-big" id="stat-total">—</div>
-        <div class="stat-sub">objects found</div>
-        <div class="stat-row">
-          <div class="stat-item"><div class="val" id="stat-time">—</div><div class="lbl">ms / frame</div></div>
-          <div class="stat-item"><div class="val" id="stat-fps">—</div><div class="lbl">fps</div></div>
-          <div class="stat-item"><div class="val" id="stat-conf">0.25</div><div class="lbl">threshold</div></div>
-        </div>
-      </div>
-
-      <div class="side-card">
-        <h4>// class breakdown</h4>
-        <div class="class-list" id="class-list"><span style="font-size:12px;color:var(--ink-faint);font-family:var(--mono);">Run detection to see results.</span></div>
-      </div>
-
-      <div class="side-card">
-        <h4>// model info</h4>
-        <div class="info-list">
-          <div class="info-item"><span class="key">Model</span><span class="val">YOLO11n</span></div>
-          <div class="info-item"><span class="key">Format</span><span class="val">ONNX</span></div>
-          <div class="info-item"><span class="key">Input</span><span class="val">640×640</span></div>
-          <div class="info-item"><span class="key">Classes</span><span class="val">10</span></div>
-          <div class="info-item"><span class="key">Dataset</span><span class="val">VisDrone2019</span></div>
-          <div class="info-item"><span class="key">Backend</span><span class="val" id="backend-val">loading…</span></div>
-        </div>
-      </div>
+<main>
+  <div class="page-head">
+    <div class="wrap">
+      <div class="hero-tag">LIVE_DEMO // CLIENT-SIDE INFERENCE</div>
+      <h1>Run the detector on your own image or video.</h1>
+      <p>Inference happens entirely in your browser via ONNX Runtime Web — nothing you upload leaves this page. Drag and drop, paste from clipboard, or choose a file below.</p>
     </div>
   </div>
+
+  <section>
+    <div class="wrap">
+
+      <div class="status-bar bbox" id="statusBar">
+        <span class="status-dot loading" id="statusDot"></span>
+        <span class="status-text" id="statusText">Loading runtime<span class="sub"> — checking for model file&hellip;</span></span>
+        <span class="status-actions"><button id="retryBtn" type="button">Retry</button></span>
+      </div>
+
+      <div class="setup-card" id="setupCard">
+        <h3>Model not found — one export step to go live</h3>
+        <p>This page looks for a trained model at <code>model/yolo11n_visdrone.onnx</code>. Export your trained weights from the training notebook and drop the file in:</p>
+        <pre>from ultralytics import YOLO
+
+model = YOLO(best_weights)   # your trained best.pt
+model.export(format="onnx", imgsz=640, opset=12)
+# produces best.onnx next to best.pt</pre>
+        <ol>
+          <li>Rename the exported file to <code>yolo11n_visdrone.onnx</code>.</li>
+          <li>Place it at <code>model/yolo11n_visdrone.onnx</code> in this repository.</li>
+          <li>Commit and push — GitHub Pages will pick it up automatically.</li>
+          <li>Reload this page, or hit <strong>Retry</strong> above once it's pushed.</li>
+        </ol>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <button class="tab-btn active" id="tabImageBtn" role="tab" aria-selected="true">Image</button>
+        <button class="tab-btn" id="tabVideoBtn" role="tab" aria-selected="false">Video</button>
+      </div>
+
+      <div class="controls-row">
+        <div class="control">
+          <label>Confidence threshold: <span class="val" id="confVal">0.25</span></label>
+          <input type="range" id="confSlider" min="0.05" max="0.9" step="0.05" value="0.25">
+        </div>
+        <div class="control">
+          <label>Backend</label>
+          <span class="status-text" id="backendVal" style="font-size:12.5px;">&mdash;</span>
+        </div>
+      </div>
+
+      <!-- IMAGE MODE -->
+      <div id="imagePane">
+        <div class="dropzone" id="imageDropzone" tabindex="0" role="button" aria-label="Upload an image">
+          <div class="dz-icon">&#9634;</div>
+          <h3>Drop an image, paste it, or click to browse</h3>
+          <p>JPG or PNG &middot; or press <span class="dz-kbd">Ctrl</span>+<span class="dz-kbd">V</span> to paste &middot; runs entirely on-device</p>
+          <input type="file" id="imageInput" accept="image/*">
+        </div>
+        <div class="stage-wrap" id="imageStageWrap">
+          <div class="stage bbox" id="imageStage">
+            <img id="previewImg" alt="Uploaded preview">
+            <canvas id="imageCanvas"></canvas>
+          </div>
+          <div class="stage-actions">
+            <button class="btn btn-primary" id="runImageBtn">Run detection</button>
+            <button class="btn btn-ghost" id="clearImageBtn">Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIDEO MODE -->
+      <div id="videoPane" style="display:none;">
+        <div class="dropzone" id="videoDropzone" tabindex="0" role="button" aria-label="Upload a video">
+          <div class="dz-icon">&#9646;&#9646;</div>
+          <h3>Drop a video, or click to browse</h3>
+          <p>MP4 or WebM &middot; short clips work best &middot; runs entirely on-device</p>
+          <input type="file" id="videoInput" accept="video/*">
+        </div>
+        <div class="stage-wrap" id="videoStageWrap">
+          <div class="stage bbox" id="videoStage">
+            <video id="previewVideo" controls playsinline muted></video>
+            <canvas id="videoCanvas"></canvas>
+          </div>
+          <div class="stage-actions">
+            <button class="btn btn-primary" id="detectFrameBtn">Detect current frame</button>
+            <button class="btn btn-ghost" id="liveDetectBtn">Start live detection</button>
+            <span class="live-fps" id="fpsChip">FPS: <span id="fpsVal">0.0</span></span>
+            <button class="btn btn-ghost" id="clearVideoBtn">Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="results-panel" id="resultsPanel">
+        <div class="results-list">
+          <h3>Detections</h3>
+          <div id="detList"><span class="empty-note">No detections yet.</span></div>
+        </div>
+        <div class="results-stats">
+          <h3>Per-class count</h3>
+          <div id="statList"><span class="empty-note">Run detection to see a breakdown.</span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
 </main>
 
 <footer>
-  <p>YOLO11n × VisDrone2019-DET · CSC354 Machine Learning · COMSATS Abbottabad · Inference: <span id="footer-backend">WebGPU / WASM</span></p>
+  <div class="wrap">
+    <p>Runs fully client-side &middot; no upload ever leaves your browser &middot; CSC354 Machine Learning semester project</p>
+  </div>
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js"></script>
 <script>
-const html = document.documentElement;
-const themeBtn = document.getElementById('theme-toggle');
-function applyTheme(t) {
-  html.setAttribute('data-theme', t);
-  themeBtn.textContent = t === 'dark' ? '☀️' : '🌙';
-  localStorage.setItem('theme', t);
-}
-applyTheme(localStorage.getItem('theme') || 'dark');
-themeBtn.addEventListener('click', () => applyTheme(html.dataset.theme === 'dark' ? 'light' : 'dark'));
+(function(){
+  "use strict";
 
-function navigateTo(href) {
-  document.querySelector('main').classList.add('page-exit');
-  setTimeout(() => { window.location.href = href; }, 300);
-}
-document.getElementById('back-btn').addEventListener('click', e => { e.preventDefault(); navigateTo('index.html'); });
-document.getElementById('back-link').addEventListener('click', e => { e.preventDefault(); navigateTo('index.html'); });
+  // ---- config ----
+  const MODEL_URL = "./model/yolo11n_visdrone.onnx";
+  const IMG_SIZE = 640;
+  const IOU_THRESH = 0.45;
+  const CLASS_NAMES = ["pedestrian","people","bicycle","car","van","truck","tricycle","awning-tricycle","bus","motor"];
+  const CLASS_COLORS = ["#e8a33d","#5ba087","#c1554a","#7fa8e0","#c98ad1","#e0c15b","#9fb5d9","#e08a5b","#6fc7c1","#d97fb0"];
 
-const CLASSES = ["pedestrian","people","bicycle","car","van","truck","tricycle","awning-tricycle","bus","motor"];
-const COLORS  = ["#FF3838","#FF9D97","#FF701F","#FFB21D","#CFD231","#48F90A","#92CC17","#3DDB86","#1A9334","#00D4BB"];
-const MODEL_PATH = 'models/best.onnx';
-const INPUT_SIZE = 640;
-const IOU_THRESHOLD = 0.45;
+  let confThresh = 0.25;
+  let session = null;
+  let modelReady = false;
 
-let session = null;
-let usedBackend = 'wasm';
-let modelReady = false;
-let modelOutputLayout = null; // BCN | BNC
+  // ---- status UI ----
+  const statusDot = document.getElementById("statusDot");
+  const statusText = document.getElementById("statusText");
+  const setupCard = document.getElementById("setupCard");
+  const backendVal = document.getElementById("backendVal");
 
-let currentMedia = null;
-let videoLoop = null;
-let videoInFlight = false;
-let frameCount = 0;
-let fpsT0 = 0;
-let currentObjectUrl = null;
-let lastDrawState = null;
-
-const runBtn = document.getElementById('run-btn');
-const stopBtn = document.getElementById('stop-btn');
-const clearBtn = document.getElementById('clear-btn');
-const status = document.getElementById('inf-status');
-const confSlider = document.getElementById('conf-slider');
-const confVal = document.getElementById('conf-val');
-const fpsBadge = document.getElementById('fps-badge');
-
-const imgEl = document.getElementById('output-img');
-const videoEl = document.getElementById('output-video');
-const canvas = document.getElementById('output-canvas');
-const placeholder = document.getElementById('canvas-placeholder');
-
-confSlider.addEventListener('input', () => {
-  const v = (confSlider.value / 100).toFixed(2);
-  confVal.textContent = v;
-  document.getElementById('stat-conf').textContent = v;
-});
-
-async function loadModel() {
-  const led = document.getElementById('model-led');
-  const txt = document.getElementById('model-status-text');
-  const bkEl = document.getElementById('model-backend');
-  const bkVal = document.getElementById('backend-val');
-  const footBk = document.getElementById('footer-backend');
-
-  modelReady = false;
-  session = null;
-  modelOutputLayout = null;
-  runBtn.disabled = true;
-
-  led.className = 'model-led loading';
-  txt.textContent = 'Loading YOLO11n ONNX model…';
-  bkEl.textContent = '';
-  bkVal.textContent = 'loading…';
-  footBk.textContent = 'Loading…';
-
-  try {
-    if (navigator.gpu) {
-      try {
-        session = await ort.InferenceSession.create(MODEL_PATH, { executionProviders: ['webgpu'] });
-        usedBackend = 'webgpu';
-      } catch {
-        session = await ort.InferenceSession.create(MODEL_PATH, { executionProviders: ['wasm'] });
-        usedBackend = 'wasm';
-      }
-    } else {
-      session = await ort.InferenceSession.create(MODEL_PATH, { executionProviders: ['wasm'] });
-      usedBackend = 'wasm';
-    }
-
-    const warmInput = new ort.Tensor('float32', new Float32Array(3 * INPUT_SIZE * INPUT_SIZE), [1,3,INPUT_SIZE,INPUT_SIZE]);
-    const warmOut = await session.run({ [session.inputNames[0]]: warmInput });
-    const outName = session.outputNames?.[0];
-    const out = outName ? warmOut[outName] : null;
-    if (!out || !Array.isArray(out.dims) || out.dims.length !== 3) throw new Error('Unexpected output tensor shape.');
-
-    const d1 = out.dims[1], d2 = out.dims[2];
-    if (d1 === 4 + CLASSES.length) modelOutputLayout = 'BCN';
-    else if (d2 === 4 + CLASSES.length) modelOutputLayout = 'BNC';
-    else throw new Error(`Unsupported output dims: [${out.dims.join(', ')}]`);
-
-    modelReady = true;
-    led.className = 'model-led ready';
-    txt.textContent = 'Model ready';
-    bkEl.textContent = usedBackend === 'webgpu' ? '[ WebGPU 🚀 ]' : '[ WASM ]';
-    bkVal.textContent = usedBackend === 'webgpu' ? 'WebGPU 🚀' : 'WASM (CPU)';
-    footBk.textContent = usedBackend === 'webgpu' ? 'WebGPU' : 'WASM';
-    runBtn.disabled = !currentMedia || !modelReady;
-  } catch (e) {
-    led.className = 'model-led error';
-    txt.textContent = 'Model load failed: ' + (e?.message || e);
-    bkEl.textContent = '[ ERROR ]';
-    bkVal.textContent = 'Unavailable';
-    footBk.textContent = 'Unavailable';
-    modelReady = false;
-    runBtn.disabled = true;
-    console.error(e);
+  function setStatus(state, mainText, subText){
+    statusDot.className = "status-dot " + state;
+    statusText.innerHTML = mainText + (subText ? '<span class="sub"> — ' + subText + '</span>' : "");
   }
-}
 
-function cleanupObjectUrl() {
-  if (currentObjectUrl) {
-    URL.revokeObjectURL(currentObjectUrl);
-    currentObjectUrl = null;
-  }
-}
-
-function setImage(src, isObjectUrl = false) {
-  stopVideo();
-  if (isObjectUrl) cleanupObjectUrl();
-  imgEl.src = src;
-  imgEl.style.display = 'block';
-  videoEl.style.display = 'none';
-  fpsBadge.style.display = 'none';
-  placeholder.style.display = 'none';
-  canvas.width = 0; canvas.height = 0;
-  lastDrawState = null;
-  currentMedia = { type: 'image', el: imgEl };
-  status.textContent = 'Image loaded. Press ▶ Run Detection.';
-  runBtn.disabled = !modelReady;
-}
-
-function setVideo(src, isObjectUrl = false) {
-  stopVideo();
-  if (isObjectUrl) cleanupObjectUrl();
-  videoEl.src = src;
-  videoEl.style.display = 'block';
-  imgEl.style.display = 'none';
-  placeholder.style.display = 'none';
-  videoEl.load();
-  lastDrawState = null;
-  currentMedia = { type: 'video', el: videoEl };
-  status.textContent = 'Video loaded. Press ▶ Run Detection to start frame-by-frame inference.';
-  runBtn.disabled = !modelReady;
-}
-
-function loadFile(file) {
-  const url = URL.createObjectURL(file);
-  cleanupObjectUrl();
-  currentObjectUrl = url;
-  if (file.type.startsWith('video/')) setVideo(url);
-  else setImage(url);
-}
-
-function loadDataUrl(dataUrl) { setImage(dataUrl); }
-
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
-  });
-});
-
-document.getElementById('file-input').addEventListener('change', e => {
-  if (e.target.files?.[0]) loadFile(e.target.files[0]);
-});
-
-document.addEventListener('paste', e => {
-  const items = e.clipboardData?.items;
-  if (!items) return;
-  for (const item of items) {
-    if (item.type.startsWith('image/')) {
-      const pz = document.getElementById('paste-zone');
-      pz.classList.add('pasting');
-      setTimeout(() => pz.classList.remove('pasting'), 800);
-      const reader = new FileReader();
-      reader.onload = ev => loadDataUrl(ev.target.result);
-      reader.readAsDataURL(item.getAsFile());
-
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-      document.getElementById('tab-paste').classList.add('active');
-      document.getElementById('panel-paste').classList.add('active');
+  async function initModel(){
+    setStatus("loading", "Loading runtime", "checking for model file\u2026");
+    setupCard.classList.remove("show");
+    try{
+      const head = await fetch(MODEL_URL, { method: "HEAD" });
+      if(!head.ok) throw new Error("model_missing");
+    }catch(e){
+      setStatus("error", "Model not found", "see setup instructions below");
+      setupCard.classList.add("show");
+      backendVal.textContent = "\u2014";
       return;
     }
-  }
-});
 
-const dragZone = document.getElementById('drag-zone');
-const bodyEl = document.body;
-['dragenter','dragover'].forEach(ev => {
-  bodyEl.addEventListener(ev, e => { e.preventDefault(); dragZone.classList.add('drag-over'); });
-});
-['dragleave','drop'].forEach(ev => {
-  bodyEl.addEventListener(ev, () => dragZone.classList.remove('drag-over'));
-});
-bodyEl.addEventListener('drop', e => {
-  e.preventDefault();
-  const file = e.dataTransfer?.files?.[0];
-  if (file) loadFile(file);
-});
-
-function getConf() { return confSlider.value / 100; }
-
-function iou(a, b) {
-  const ix1 = Math.max(a[0], b[0]), iy1 = Math.max(a[1], b[1]), ix2 = Math.min(a[2], b[2]), iy2 = Math.min(a[3], b[3]);
-  const inter = Math.max(0, ix2 - ix1) * Math.max(0, iy2 - iy1);
-  return inter / (((a[2]-a[0])*(a[3]-a[1])) + ((b[2]-b[0])*(b[3]-b[1])) - inter + 1e-9);
-}
-function nms(boxes, thr) {
-  boxes.sort((a,b)=>b.s-a.s);
-  const out = [];
-  for (const b of boxes) if (!out.some(o => o.c===b.c && iou(o.b,b.b)>thr)) out.push(b);
-  return out;
-}
-
-async function infer(source) {
-  if (!session || !modelReady) throw new Error('Model is not ready.');
-
-  const SZ = INPUT_SIZE;
-  const off = document.createElement('canvas'); off.width = SZ; off.height = SZ;
-  const ctx = off.getContext('2d', { willReadFrequently: true });
-
-  const sw = source.naturalWidth || source.videoWidth || source.width || 0;
-  const sh = source.naturalHeight || source.videoHeight || source.height || 0;
-  if (!sw || !sh) throw new Error('Media is not ready (invalid width/height).');
-
-  const sc = Math.min(SZ / sw, SZ / sh);
-  const nw = sw * sc, nh = sh * sc;
-  const px = (SZ - nw) / 2, py = (SZ - nh) / 2;
-
-  ctx.fillStyle = '#727272';
-  ctx.fillRect(0, 0, SZ, SZ);
-  ctx.drawImage(source, px, py, nw, nh);
-
-  const imgData = ctx.getImageData(0, 0, SZ, SZ).data;
-  const f32 = new Float32Array(3 * SZ * SZ);
-  for (let i = 0; i < SZ*SZ; i++) {
-    f32[i] = imgData[i*4] / 255;
-    f32[SZ*SZ + i] = imgData[i*4+1] / 255;
-    f32[2*SZ*SZ + i] = imgData[i*4+2] / 255;
-  }
-
-  const tensor = new ort.Tensor('float32', f32, [1,3,SZ,SZ]);
-  const results = await session.run({ [session.inputNames[0]]: tensor });
-
-  const outName = session.outputNames?.[0];
-  const out = outName ? results[outName] : null;
-  if (!out || !out.data || !out.dims || out.dims.length !== 3) throw new Error('Invalid model output.');
-
-  const data = out.data;
-  const dims = out.dims;
-  let nAnc = 0;
-  if (modelOutputLayout === 'BCN') nAnc = dims[2];
-  else if (modelOutputLayout === 'BNC') nAnc = dims[1];
-  else throw new Error('Unknown output layout.');
-
-  const boxes = [];
-  const conf = getConf();
-  const stride = 4 + CLASSES.length;
-
-  for (let i = 0; i < nAnc; i++) {
-    let ms = 0, mc = -1;
-    for (let c = 0; c < CLASSES.length; c++) {
-      const s = modelOutputLayout === 'BCN' ? data[(4+c)*nAnc + i] : data[i*stride + (4+c)];
-      if (s > ms) { ms = s; mc = c; }
-    }
-    if (ms > conf) {
-      const cx = modelOutputLayout === 'BCN' ? data[0*nAnc+i] : data[i*stride+0];
-      const cy = modelOutputLayout === 'BCN' ? data[1*nAnc+i] : data[i*stride+1];
-      const w  = modelOutputLayout === 'BCN' ? data[2*nAnc+i] : data[i*stride+2];
-      const h  = modelOutputLayout === 'BCN' ? data[3*nAnc+i] : data[i*stride+3];
-      const x1 = cx - w/2, y1 = cy - h/2, x2 = cx + w/2, y2 = cy + h/2;
-      boxes.push({ b: [(x1-px)/sc, (y1-py)/sc, (x2-px)/sc, (y2-py)/sc], s: ms, c: mc });
+    try{
+      let backendName = "wasm";
+      try{
+        if(navigator.gpu){
+          session = await ort.InferenceSession.create(MODEL_URL, { executionProviders: ["webgpu"] });
+          backendName = "webgpu";
+        }else{
+          throw new Error("no webgpu");
+        }
+      }catch(e){
+        session = await ort.InferenceSession.create(MODEL_URL, { executionProviders: ["wasm"] });
+        backendName = "wasm";
+      }
+      modelReady = true;
+      backendVal.textContent = backendName.toUpperCase();
+      setStatus("ready", "Model ready", backendName === "webgpu" ? "GPU-accelerated" : "running on CPU (WASM)");
+    }catch(err){
+      console.error(err);
+      setStatus("error", "Failed to initialize model", String(err.message || err));
+      setupCard.classList.add("show");
     }
   }
-  return nms(boxes, IOU_THRESHOLD);
-}
 
-function draw(boxes, srcW, srcH) {
-  const displayEl = imgEl.style.display !== 'none' ? imgEl : videoEl;
-  canvas.width = displayEl.offsetWidth || displayEl.width || srcW;
-  canvas.height = displayEl.offsetHeight || displayEl.height || srcH;
+  document.getElementById("retryBtn").addEventListener("click", initModel);
+  initModel();
 
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const sx = canvas.width / srcW, sy = canvas.height / srcH;
-
-  for (const {b,s,c} of boxes) {
-    const [x1,y1,x2,y2] = b;
-    const col = COLORS[c % COLORS.length];
-    const cx1 = x1*sx, cy1 = y1*sy, cw = (x2-x1)*sx, ch = (y2-y1)*sy;
-    ctx.strokeStyle = col; ctx.lineWidth = 1.8;
-    ctx.strokeRect(cx1, cy1, cw, ch);
-    const label = `${CLASSES[c]} ${(s*100).toFixed(0)}%`;
-    ctx.font = 'bold 11px monospace';
-    const tw = ctx.measureText(label).width;
-    ctx.fillStyle = col; ctx.fillRect(cx1, Math.max(0, cy1-18), tw+6, 18);
-    ctx.fillStyle = '#000'; ctx.fillText(label, cx1+3, Math.max(12, cy1-5));
-  }
-
-  lastDrawState = { boxes, srcW, srcH };
-}
-
-function updateStats(boxes, ms) {
-  document.getElementById('stat-total').textContent = boxes.length;
-  document.getElementById('stat-time').textContent = ms.toFixed(0);
-
-  const counts = {};
-  boxes.forEach(b => { const n = CLASSES[b.c]; counts[n] = (counts[n] || 0) + 1; });
-  const max = Math.max(1, ...Object.values(counts));
-  const cl = document.getElementById('class-list');
-
-  if (!Object.keys(counts).length) {
-    cl.innerHTML = '<span style="font-size:12px;color:var(--ink-faint);font-family:var(--mono);">No detections.</span>';
-    return;
-  }
-
-  cl.innerHTML = '';
-  Object.entries(counts).sort((a,b)=>b[1]-a[1]).forEach(([name,cnt]) => {
-    const row = document.createElement('div');
-    row.className = 'cls-row';
-    row.innerHTML = `<span class="cls-name">${name}</span><span class="cls-track"><span class="cls-fill" style="width:${(cnt/max*100).toFixed(0)}%"></span></span><span class="cls-cnt">${cnt}</span>`;
-    cl.appendChild(row);
+  // ---- confidence slider ----
+  const confSlider = document.getElementById("confSlider");
+  const confVal = document.getElementById("confVal");
+  confSlider.addEventListener("input", () => {
+    confThresh = parseFloat(confSlider.value);
+    confVal.textContent = confThresh.toFixed(2);
   });
-}
 
-async function runImage() {
-  if (!modelReady) { status.textContent = 'Model not ready.'; return; }
-  if (!imgEl.naturalWidth || !imgEl.naturalHeight) { status.textContent = 'Image is not ready yet.'; return; }
+  // ---- tabs ----
+  const tabImageBtn = document.getElementById("tabImageBtn");
+  const tabVideoBtn = document.getElementById("tabVideoBtn");
+  const imagePane = document.getElementById("imagePane");
+  const videoPane = document.getElementById("videoPane");
+  tabImageBtn.addEventListener("click", () => {
+    tabImageBtn.classList.add("active"); tabImageBtn.setAttribute("aria-selected","true");
+    tabVideoBtn.classList.remove("active"); tabVideoBtn.setAttribute("aria-selected","false");
+    imagePane.style.display = ""; videoPane.style.display = "none";
+    stopLiveDetection();
+    hideResults();
+  });
+  tabVideoBtn.addEventListener("click", () => {
+    tabVideoBtn.classList.add("active"); tabVideoBtn.setAttribute("aria-selected","true");
+    tabImageBtn.classList.remove("active"); tabImageBtn.setAttribute("aria-selected","false");
+    videoPane.style.display = ""; imagePane.style.display = "none";
+    hideResults();
+  });
 
-  runBtn.classList.add('running'); runBtn.disabled = true;
-  status.textContent = 'Running inference…';
-  const t0 = performance.now();
-
-  try {
-    const boxes = await infer(imgEl);
-    const ms = performance.now() - t0;
-    draw(boxes, imgEl.naturalWidth, imgEl.naturalHeight);
-    updateStats(boxes, ms);
-    document.getElementById('stat-fps').textContent = (1000 / Math.max(ms,1)).toFixed(1);
-    status.textContent = `Done — ${boxes.length} objects detected in ${ms.toFixed(0)}ms`;
-  } catch (e) {
-    status.textContent = 'Error: ' + (e?.message || e);
-    console.error(e);
-  }
-
-  runBtn.classList.remove('running');
-  runBtn.disabled = !modelReady;
-}
-
-async function runVideoLoop() {
-  if (!modelReady) { status.textContent = 'Model not ready.'; return; }
-
-  const vid = videoEl;
-  if (vid.paused) vid.play().catch(()=>{});
-  fpsBadge.style.display = 'block';
-  stopBtn.style.display = 'inline-flex';
-  runBtn.style.display = 'none';
-  frameCount = 0; fpsT0 = performance.now();
-
-  async function frame() {
-    if (!videoLoop) return;
-    if (vid.readyState < 2) { videoLoop = requestAnimationFrame(frame); return; }
-    if (videoInFlight) { videoLoop = requestAnimationFrame(frame); return; }
-
-    videoInFlight = true;
-    const t0 = performance.now();
-
-    try {
-      if (!vid.videoWidth || !vid.videoHeight) throw new Error('Video frame not ready.');
-      const boxes = await infer(vid);
-      const ms = performance.now() - t0;
-      draw(boxes, vid.videoWidth, vid.videoHeight);
-      updateStats(boxes, ms);
-
-      frameCount++;
-      const elapsed = (performance.now() - fpsT0) / 1000;
-      const fps = (frameCount / Math.max(elapsed, 0.001)).toFixed(1);
-      fpsBadge.textContent = `${fps} FPS`;
-      document.getElementById('stat-fps').textContent = fps;
-      document.getElementById('stat-time').textContent = ms.toFixed(0);
-      status.textContent = `Frame ${frameCount} — ${boxes.length} objects — ${ms.toFixed(0)}ms`;
-    } catch (e) {
-      status.textContent = `Video inference warning: ${e.message || e}`;
-    } finally {
-      videoInFlight = false;
+  // ---- results panel ----
+  const resultsPanel = document.getElementById("resultsPanel");
+  const detList = document.getElementById("detList");
+  const statList = document.getElementById("statList");
+  function hideResults(){ resultsPanel.classList.remove("show"); }
+  function renderResults(dets){
+    if(!dets.length){
+      detList.innerHTML = '<span class="empty-note">No objects detected above the current confidence threshold.</span>';
+      statList.innerHTML = '<span class="empty-note">Try lowering the confidence threshold.</span>';
+      resultsPanel.classList.add("show");
+      return;
     }
-
-    videoLoop = requestAnimationFrame(frame);
+    const sorted = [...dets].sort((a,b) => b.score - a.score);
+    detList.innerHTML = sorted.slice(0, 40).map(d =>
+      `<div class="det-row"><span class="det-class">${CLASS_NAMES[d.cls]}</span><span class="det-conf">${(d.score*100).toFixed(1)}%</span></div>`
+    ).join("");
+    const counts = {};
+    dets.forEach(d => { counts[d.cls] = (counts[d.cls]||0) + 1; });
+    const rows = Object.keys(counts).sort((a,b)=>counts[b]-counts[a])
+      .map(c => `<div class="stat-chip"><span>${CLASS_NAMES[c]}</span><span class="n">${counts[c]}</span></div>`).join("");
+    statList.innerHTML = rows;
+    resultsPanel.classList.add("show");
   }
 
-  videoLoop = requestAnimationFrame(frame);
-}
+  // ---- letterbox preprocessing ----
+  function letterbox(source, srcW, srcH){
+    const scale = Math.min(IMG_SIZE / srcW, IMG_SIZE / srcH);
+    const newW = Math.round(srcW * scale);
+    const newH = Math.round(srcH * scale);
+    const padX = Math.floor((IMG_SIZE - newW) / 2);
+    const padY = Math.floor((IMG_SIZE - newH) / 2);
 
-function stopVideo() {
-  if (videoLoop) { cancelAnimationFrame(videoLoop); videoLoop = null; }
-  videoInFlight = false;
-  videoEl.pause();
-  fpsBadge.style.display = 'none';
-  stopBtn.style.display = 'none';
-  runBtn.style.display = 'inline-flex';
-}
+    const off = document.createElement("canvas");
+    off.width = IMG_SIZE; off.height = IMG_SIZE;
+    const ctx = off.getContext("2d");
+    ctx.fillStyle = "rgb(114,114,114)";
+    ctx.fillRect(0, 0, IMG_SIZE, IMG_SIZE);
+    ctx.drawImage(source, 0, 0, srcW, srcH, padX, padY, newW, newH);
 
-runBtn.addEventListener('click', () => {
-  if (!session || !currentMedia || !modelReady) return;
-  if (currentMedia.type === 'image') runImage();
-  else runVideoLoop();
-});
+    const imgData = ctx.getImageData(0, 0, IMG_SIZE, IMG_SIZE).data;
+    const chw = new Float32Array(3 * IMG_SIZE * IMG_SIZE);
+    const plane = IMG_SIZE * IMG_SIZE;
+    for(let i = 0; i < plane; i++){
+      chw[i]         = imgData[i*4]   / 255;  // R
+      chw[plane+i]   = imgData[i*4+1] / 255;  // G
+      chw[2*plane+i] = imgData[i*4+2] / 255;  // B
+    }
+    return { tensor: chw, scale, padX, padY };
+  }
 
-stopBtn.addEventListener('click', stopVideo);
+  function iou(a, b){
+    const x1 = Math.max(a.x1,b.x1), y1 = Math.max(a.y1,b.y1);
+    const x2 = Math.min(a.x2,b.x2), y2 = Math.min(a.y2,b.y2);
+    const w = Math.max(0, x2-x1), h = Math.max(0, y2-y1);
+    const inter = w*h;
+    const areaA = (a.x2-a.x1)*(a.y2-a.y1), areaB = (b.x2-b.x1)*(b.y2-b.y1);
+    return inter / (areaA + areaB - inter + 1e-9);
+  }
 
-clearBtn.addEventListener('click', () => {
-  stopVideo();
-  cleanupObjectUrl();
+  function nms(boxes){
+    const byClass = {};
+    boxes.forEach(b => { (byClass[b.cls] = byClass[b.cls] || []).push(b); });
+    let out = [];
+    Object.values(byClass).forEach(list => {
+      list.sort((a,b) => b.score - a.score);
+      const kept = [];
+      for(const box of list){
+        if(kept.every(k => iou(k, box) < IOU_THRESH)) kept.push(box);
+      }
+      out = out.concat(kept);
+    });
+    return out;
+  }
 
-  imgEl.src = ''; imgEl.style.display = 'none';
-  videoEl.src = ''; videoEl.style.display = 'none';
-  placeholder.style.display = 'flex';
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  async function runInference(source, srcW, srcH){
+    const { tensor, scale, padX, padY } = letterbox(source, srcW, srcH);
+    const inputName = session.inputNames[0];
+    const feeds = {};
+    feeds[inputName] = new ort.Tensor("float32", tensor, [1, 3, IMG_SIZE, IMG_SIZE]);
+    const results = await session.run(feeds);
+    const outputName = session.outputNames[0];
+    const output = results[outputName];
+    const dims = output.dims; // [1, C, N]
+    const C = dims[1], N = dims[2];
+    const numClasses = C - 4;
+    const data = output.data;
 
-  currentMedia = null;
-  lastDrawState = null;
-  runBtn.disabled = true;
+    const boxes = [];
+    for(let i = 0; i < N; i++){
+      let maxScore = -Infinity, maxClass = -1;
+      for(let c = 0; c < numClasses; c++){
+        const s = data[(4+c)*N + i];
+        if(s > maxScore){ maxScore = s; maxClass = c; }
+      }
+      if(maxScore < confThresh) continue;
+      const cx = data[i], cy = data[N+i], w = data[2*N+i], h = data[3*N+i];
+      let x1 = (cx - w/2 - padX) / scale;
+      let y1 = (cy - h/2 - padY) / scale;
+      let x2 = (cx + w/2 - padX) / scale;
+      let y2 = (cy + h/2 - padY) / scale;
+      x1 = Math.max(0, Math.min(x1, srcW)); y1 = Math.max(0, Math.min(y1, srcH));
+      x2 = Math.max(0, Math.min(x2, srcW)); y2 = Math.max(0, Math.min(y2, srcH));
+      boxes.push({ x1, y1, x2, y2, score: maxScore, cls: maxClass });
+    }
+    return nms(boxes);
+  }
 
-  document.getElementById('stat-total').textContent = '—';
-  document.getElementById('stat-time').textContent = '—';
-  document.getElementById('stat-fps').textContent = '—';
-  document.getElementById('class-list').innerHTML = '<span style="font-size:12px;color:var(--ink-faint);font-family:var(--mono);">Run detection to see results.</span>';
-  status.textContent = 'Load a model, then an image or video.';
-});
+  // ---- bracket-style box drawing (matches site's bounding-box motif) ----
+  function drawDetections(ctx, canvasW, canvasH, srcW, srcH, dets){
+    ctx.clearRect(0, 0, canvasW, canvasH);
+    const sx = canvasW / srcW, sy = canvasH / srcH;
+    ctx.font = "600 12px 'IBM Plex Mono', monospace";
+    ctx.textBaseline = "bottom";
+    dets.forEach(d => {
+      const x1 = d.x1*sx, y1 = d.y1*sy, x2 = d.x2*sx, y2 = d.y2*sy;
+      const w = x2-x1, h = y2-y1;
+      const color = CLASS_COLORS[d.cls % CLASS_COLORS.length];
+      const cl = Math.min(14, w/2.2, h/2.2);
+      ctx.strokeStyle = color; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1+cl); ctx.lineTo(x1,y1); ctx.lineTo(x1+cl,y1);
+      ctx.moveTo(x2-cl, y1); ctx.lineTo(x2,y1); ctx.lineTo(x2,y1+cl);
+      ctx.moveTo(x2, y2-cl); ctx.lineTo(x2,y2); ctx.lineTo(x2-cl,y2);
+      ctx.moveTo(x1+cl, y2); ctx.lineTo(x1,y2); ctx.lineTo(x1,y2-cl);
+      ctx.stroke();
+      ctx.globalAlpha = 0.25; ctx.strokeRect(x1,y1,w,h); ctx.globalAlpha = 1;
 
-window.addEventListener('resize', () => {
-  if (!lastDrawState) return;
-  draw(lastDrawState.boxes, lastDrawState.srcW, lastDrawState.srcH);
-});
+      const label = CLASS_NAMES[d.cls] + " " + (d.score*100).toFixed(0) + "%";
+      const tw = ctx.measureText(label).width + 10;
+      ctx.fillStyle = color;
+      ctx.fillRect(x1, Math.max(0,y1-18), tw, 18);
+      ctx.fillStyle = "#0a0f1c";
+      ctx.fillText(label, x1+5, Math.max(18,y1));
+    });
+  }
 
-window.addEventListener('beforeunload', () => {
-  stopVideo();
-  cleanupObjectUrl();
-});
+  // ---- lightweight temporal smoothing for video (reduces flicker/jitter) ----
+  // Not a full tracker (no Kalman filter) — greedy IoU matching + EMA position smoothing
+  // + a short "grace period" so a box that's missed for 1-2 frames doesn't vanish/flicker.
+  let trackedBoxes = []; // { x1,y1,x2,y2, cls, score, missed, id }
+  let trackIdCounter = 0;
+  const SMOOTH_ALPHA = 0.45;      // higher = snappier, lower = smoother
+  const MATCH_IOU_MIN = 0.3;
+  const MAX_MISSED_FRAMES = 3;
 
-window.addEventListener('load', loadModel);
+  function smoothTrack(newDets){
+    const usedNew = new Set();
+    // match existing tracks to new detections (same class, best IoU)
+    trackedBoxes.forEach(track => {
+      let bestIou = MATCH_IOU_MIN, bestIdx = -1;
+      newDets.forEach((d, i) => {
+        if(usedNew.has(i) || d.cls !== track.cls) return;
+        const v = iou(track, d);
+        if(v > bestIou){ bestIou = v; bestIdx = i; }
+      });
+      if(bestIdx >= 0){
+        const d = newDets[bestIdx];
+        track.x1 = track.x1*(1-SMOOTH_ALPHA) + d.x1*SMOOTH_ALPHA;
+        track.y1 = track.y1*(1-SMOOTH_ALPHA) + d.y1*SMOOTH_ALPHA;
+        track.x2 = track.x2*(1-SMOOTH_ALPHA) + d.x2*SMOOTH_ALPHA;
+        track.y2 = track.y2*(1-SMOOTH_ALPHA) + d.y2*SMOOTH_ALPHA;
+        track.score = d.score;
+        track.missed = 0;
+        usedNew.add(bestIdx);
+      }else{
+        track.missed += 1;
+      }
+    });
+    // drop stale tracks
+    trackedBoxes = trackedBoxes.filter(t => t.missed <= MAX_MISSED_FRAMES);
+    // add unmatched new detections as fresh tracks
+    newDets.forEach((d, i) => {
+      if(!usedNew.has(i)){
+        trackedBoxes.push({ ...d, missed: 0, id: trackIdCounter++ });
+      }
+    });
+    return trackedBoxes.filter(t => t.missed === 0 || t.missed <= MAX_MISSED_FRAMES);
+  }
+
+  function resetTracking(){ trackedBoxes = []; }
+
+
+  function wireDropzone(zone, input, onFile){
+    zone.addEventListener("click", () => input.click());
+    zone.addEventListener("keydown", e => { if(e.key === "Enter" || e.key === " ") input.click(); });
+    input.addEventListener("change", () => { if(input.files[0]) onFile(input.files[0]); });
+    ["dragenter","dragover"].forEach(evt => zone.addEventListener(evt, e => { e.preventDefault(); zone.classList.add("drag"); }));
+    ["dragleave","drop"].forEach(evt => zone.addEventListener(evt, e => { e.preventDefault(); zone.classList.remove("drag"); }));
+    zone.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if(f) onFile(f); });
+  }
+
+  window.addEventListener("paste", e => {
+    const items = e.clipboardData && e.clipboardData.items;
+    if(!items) return;
+    for(const item of items){
+      if(item.type.indexOf("image") === 0){
+        const file = item.getAsFile();
+        if(file && imagePane.style.display !== "none") handleImageFile(file);
+      }
+    }
+  });
+
+  // ================= IMAGE MODE =================
+  const imageDropzone = document.getElementById("imageDropzone");
+  const imageInput = document.getElementById("imageInput");
+  const imageStageWrap = document.getElementById("imageStageWrap");
+  const previewImg = document.getElementById("previewImg");
+  const imageCanvas = document.getElementById("imageCanvas");
+  const runImageBtn = document.getElementById("runImageBtn");
+  const clearImageBtn = document.getElementById("clearImageBtn");
+
+  function handleImageFile(file){
+    const url = URL.createObjectURL(file);
+    previewImg.onload = () => {
+      imageStageWrap.classList.add("show");
+      sizeCanvasToEl(previewImg, imageCanvas);
+      hideResults();
+    };
+    previewImg.src = url;
+  }
+  wireDropzone(imageDropzone, imageInput, handleImageFile);
+
+  function sizeCanvasToEl(el, canvas){
+    const r = el.getBoundingClientRect();
+    canvas.width = r.width; canvas.height = r.height;
+  }
+
+  runImageBtn.addEventListener("click", async () => {
+    if(!modelReady){ setStatus("error","Model not ready","check setup instructions below"); setupCard.classList.add("show"); return; }
+    runImageBtn.disabled = true; runImageBtn.textContent = "Running\u2026";
+    try{
+      sizeCanvasToEl(previewImg, imageCanvas);
+      const dets = await runInference(previewImg, previewImg.naturalWidth, previewImg.naturalHeight);
+      const ctx = imageCanvas.getContext("2d");
+      drawDetections(ctx, imageCanvas.width, imageCanvas.height, previewImg.naturalWidth, previewImg.naturalHeight, dets);
+      renderResults(dets);
+    }catch(err){
+      console.error(err);
+      setStatus("error", "Inference failed", String(err.message||err));
+    }
+    runImageBtn.disabled = false; runImageBtn.textContent = "Run detection";
+  });
+
+  clearImageBtn.addEventListener("click", () => {
+    previewImg.src = ""; imageStageWrap.classList.remove("show"); hideResults();
+    imageInput.value = "";
+  });
+
+  window.addEventListener("resize", () => { if(imageStageWrap.classList.contains("show")) sizeCanvasToEl(previewImg, imageCanvas); });
+
+  // ================= VIDEO MODE =================
+  const videoDropzone = document.getElementById("videoDropzone");
+  const videoInput = document.getElementById("videoInput");
+  const videoStageWrap = document.getElementById("videoStageWrap");
+  const previewVideo = document.getElementById("previewVideo");
+  const videoCanvas = document.getElementById("videoCanvas");
+  const detectFrameBtn = document.getElementById("detectFrameBtn");
+  const liveDetectBtn = document.getElementById("liveDetectBtn");
+  const clearVideoBtn = document.getElementById("clearVideoBtn");
+  const fpsChip = document.getElementById("fpsChip");
+  const fpsVal = document.getElementById("fpsVal");
+
+  let liveLoopHandle = null;
+  let liveActive = false;
+
+  function handleVideoFile(file){
+    const url = URL.createObjectURL(file);
+    previewVideo.onloadedmetadata = () => {
+      videoStageWrap.classList.add("show");
+      sizeCanvasToEl(previewVideo, videoCanvas);
+      hideResults();
+    };
+    previewVideo.src = url;
+  }
+  wireDropzone(videoDropzone, videoInput, handleVideoFile);
+
+  async function detectVideoFrame(useSmoothing){
+    if(!modelReady) return null;
+    sizeCanvasToEl(previewVideo, videoCanvas);
+    const raw = await runInference(previewVideo, previewVideo.videoWidth, previewVideo.videoHeight);
+    const dets = useSmoothing ? smoothTrack(raw) : raw;
+    const ctx = videoCanvas.getContext("2d");
+    drawDetections(ctx, videoCanvas.width, videoCanvas.height, previewVideo.videoWidth, previewVideo.videoHeight, dets);
+    return dets;
+  }
+
+  detectFrameBtn.addEventListener("click", async () => {
+    if(!modelReady){ setStatus("error","Model not ready","check setup instructions below"); setupCard.classList.add("show"); return; }
+    detectFrameBtn.disabled = true; detectFrameBtn.textContent = "Running\u2026";
+    try{
+      resetTracking();
+      const dets = await detectVideoFrame(false);
+      if(dets) renderResults(dets);
+    }catch(err){ console.error(err); setStatus("error","Inference failed", String(err.message||err)); }
+    detectFrameBtn.disabled = false; detectFrameBtn.textContent = "Detect current frame";
+  });
+
+  async function liveLoop(){
+    if(!liveActive) return;
+    const t0 = performance.now();
+    try{
+      const dets = await detectVideoFrame(true);
+      if(dets) renderResults(dets);
+      const dt = performance.now() - t0;
+      fpsVal.textContent = (1000/Math.max(dt,1)).toFixed(1);
+    }catch(err){ console.error(err); }
+    if(liveActive) liveLoopHandle = requestAnimationFrame(liveLoop);
+  }
+
+  function stopLiveDetection(){
+    liveActive = false;
+    if(liveLoopHandle) cancelAnimationFrame(liveLoopHandle);
+    liveDetectBtn.textContent = "Start live detection";
+    liveDetectBtn.classList.remove("active");
+    fpsChip.classList.remove("show");
+    resetTracking();
+  }
+
+  liveDetectBtn.addEventListener("click", () => {
+    if(!modelReady){ setStatus("error","Model not ready","check setup instructions below"); setupCard.classList.add("show"); return; }
+    if(liveActive){ stopLiveDetection(); return; }
+    resetTracking();
+    liveActive = true;
+    liveDetectBtn.textContent = "Stop live detection";
+    liveDetectBtn.classList.add("active");
+    fpsChip.classList.add("show");
+    if(previewVideo.paused) previewVideo.play().catch(()=>{});
+    liveLoop();
+  });
+
+  clearVideoBtn.addEventListener("click", () => {
+    stopLiveDetection();
+    previewVideo.pause(); previewVideo.src = "";
+    videoStageWrap.classList.remove("show"); hideResults();
+    videoInput.value = "";
+  });
+
+  window.addEventListener("resize", () => { if(videoStageWrap.classList.contains("show")) sizeCanvasToEl(previewVideo, videoCanvas); });
+
+})();
 </script>
+
 </body>
 </html>
