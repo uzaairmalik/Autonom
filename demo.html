@@ -101,17 +101,6 @@
   .setup-card li{ margin-bottom:6px; }
   .setup-card code{ color: var(--accent); }
 
-  /* mode tabs */
-  .tabs{ display:flex; gap:0; border:1px solid var(--line); width:fit-content; margin-bottom:24px; }
-  .tabs #tabVideoBtn{ display:none; }
-  .tab-btn{
-    font-family: var(--mono); font-size:13px; padding:10px 22px; background:transparent; color: var(--ink-muted);
-    border:none; cursor:pointer; border-right:1px solid var(--line); transition: all 0.15s;
-  }
-  .tab-btn:last-child{ border-right:none; }
-  .tab-btn.active{ background: var(--accent); color: var(--bg); font-weight:600; }
-  .tab-btn:not(.active):hover{ color: var(--ink); background: var(--bg-panel); }
-
   .controls-row{ display:flex; gap:20px; flex-wrap:wrap; align-items:center; margin-bottom: 24px; }
   .control{ display:flex; flex-direction:column; gap:6px; }
   .control label{ font-family: var(--mono); font-size:11.5px; color: var(--ink-muted); text-transform:uppercase; letter-spacing:0.04em; }
@@ -133,7 +122,6 @@
   /* stage (preview + canvas overlay) */
   .stage-wrap{ display:none; }
   .stage-wrap.show{ display:block; }
-  #videoPane{ display:none !important; }
   .stage{
     position:relative; width:100%; background: var(--bg-panel-alt); border:1px solid var(--line);
     display:flex; align-items:center; justify-content:center; overflow:hidden; min-height: 240px;
@@ -194,7 +182,7 @@
     <div class="wrap">
       <div class="hero-tag">IMAGE_FALLBACK // CLIENT-SIDE INFERENCE</div>
       <h1>Run the detector on your own image.</h1>
-      <p>This page is the static fallback for quick browser checks. Use Streamlit for the full video demo, then come back here when you only need fast image previewing.</p>
+      <p>This page is the image-only demo for quick browser checks. Use Streamlit when you want the video workflow.</p>
       <div class="hero-actions" style="margin-top:20px;">
         <a class="btn btn-primary" href="https://aerialvision-ai-uzairmalikdev.streamlit.app/" target="_blank" rel="noopener">Open Streamlit demo →</a>
       </div>
@@ -223,10 +211,6 @@ model.export(format="onnx", imgsz=640, opset=12)
           <li>Commit and push — GitHub Pages will pick it up automatically.</li>
           <li>Reload this page, or hit <strong>Retry</strong> above once it's pushed.</li>
         </ol>
-      </div>
-
-      <div class="tabs" role="tablist">
-        <button class="tab-btn active" id="tabImageBtn" role="tab" aria-selected="true">Image</button>
       </div>
 
       <div class="controls-row">
@@ -353,16 +337,6 @@ model.export(format="onnx", imgsz=640, opset=12)
   confSlider.addEventListener("input", () => {
     confThresh = parseFloat(confSlider.value);
     confVal.textContent = confThresh.toFixed(2);
-  });
-
-  // ---- tabs ----
-  const tabImageBtn = document.getElementById("tabImageBtn");
-  const imagePane = document.getElementById("imagePane");
-  tabImageBtn.addEventListener("click", () => {
-    tabImageBtn.classList.add("active");
-    tabImageBtn.setAttribute("aria-selected","true");
-    if (imagePane) imagePane.style.display = "";
-    hideResults();
   });
 
   // ---- results panel ----
@@ -501,52 +475,6 @@ model.export(format="onnx", imgsz=640, opset=12)
     });
   }
 
-  // ---- lightweight temporal smoothing for video (reduces flicker/jitter) ----
-  // Not a full tracker (no Kalman filter) — greedy IoU matching + EMA position smoothing
-  // + a short "grace period" so a box that's missed for 1-2 frames doesn't vanish/flicker.
-  let trackedBoxes = []; // { x1,y1,x2,y2, cls, score, missed, id }
-  let trackIdCounter = 0;
-  const SMOOTH_ALPHA = 0.45;      // higher = snappier, lower = smoother
-  const MATCH_IOU_MIN = 0.3;
-  const MAX_MISSED_FRAMES = 3;
-
-  function smoothTrack(newDets){
-    const usedNew = new Set();
-    // match existing tracks to new detections (same class, best IoU)
-    trackedBoxes.forEach(track => {
-      let bestIou = MATCH_IOU_MIN, bestIdx = -1;
-      newDets.forEach((d, i) => {
-        if(usedNew.has(i) || d.cls !== track.cls) return;
-        const v = iou(track, d);
-        if(v > bestIou){ bestIou = v; bestIdx = i; }
-      });
-      if(bestIdx >= 0){
-        const d = newDets[bestIdx];
-        track.x1 = track.x1*(1-SMOOTH_ALPHA) + d.x1*SMOOTH_ALPHA;
-        track.y1 = track.y1*(1-SMOOTH_ALPHA) + d.y1*SMOOTH_ALPHA;
-        track.x2 = track.x2*(1-SMOOTH_ALPHA) + d.x2*SMOOTH_ALPHA;
-        track.y2 = track.y2*(1-SMOOTH_ALPHA) + d.y2*SMOOTH_ALPHA;
-        track.score = d.score;
-        track.missed = 0;
-        usedNew.add(bestIdx);
-      }else{
-        track.missed += 1;
-      }
-    });
-    // drop stale tracks
-    trackedBoxes = trackedBoxes.filter(t => t.missed <= MAX_MISSED_FRAMES);
-    // add unmatched new detections as fresh tracks
-    newDets.forEach((d, i) => {
-      if(!usedNew.has(i)){
-        trackedBoxes.push({ ...d, missed: 0, id: trackIdCounter++ });
-      }
-    });
-    return trackedBoxes.filter(t => t.missed === 0 || t.missed <= MAX_MISSED_FRAMES);
-  }
-
-  function resetTracking(){ trackedBoxes = []; }
-
-
   function wireDropzone(zone, input, onFile){
     zone.addEventListener("click", () => input.click());
     zone.addEventListener("keydown", e => { if(e.key === "Enter" || e.key === " ") input.click(); });
@@ -562,7 +490,7 @@ model.export(format="onnx", imgsz=640, opset=12)
     for(const item of items){
       if(item.type.indexOf("image") === 0){
         const file = item.getAsFile();
-        if(file && imagePane.style.display !== "none") handleImageFile(file);
+        if(file) handleImageFile(file);
       }
     }
   });
@@ -614,95 +542,6 @@ model.export(format="onnx", imgsz=640, opset=12)
   });
 
   window.addEventListener("resize", () => { if(imageStageWrap.classList.contains("show")) sizeCanvasToEl(previewImg, imageCanvas); });
-
-  // ================= VIDEO MODE =================
-  const videoDropzone = document.getElementById("videoDropzone");
-  const videoInput = document.getElementById("videoInput");
-  const videoStageWrap = document.getElementById("videoStageWrap");
-  const previewVideo = document.getElementById("previewVideo");
-  const videoCanvas = document.getElementById("videoCanvas");
-  const detectFrameBtn = document.getElementById("detectFrameBtn");
-  const liveDetectBtn = document.getElementById("liveDetectBtn");
-  const clearVideoBtn = document.getElementById("clearVideoBtn");
-  const fpsChip = document.getElementById("fpsChip");
-  const fpsVal = document.getElementById("fpsVal");
-
-  let liveLoopHandle = null;
-  let liveActive = false;
-
-  function handleVideoFile(file){
-    const url = URL.createObjectURL(file);
-    previewVideo.onloadedmetadata = () => {
-      videoStageWrap.classList.add("show");
-      sizeCanvasToEl(previewVideo, videoCanvas);
-      hideResults();
-    };
-    previewVideo.src = url;
-  }
-  wireDropzone(videoDropzone, videoInput, handleVideoFile);
-
-  async function detectVideoFrame(useSmoothing){
-    if(!modelReady) return null;
-    sizeCanvasToEl(previewVideo, videoCanvas);
-    const raw = await runInference(previewVideo, previewVideo.videoWidth, previewVideo.videoHeight);
-    const dets = useSmoothing ? smoothTrack(raw) : raw;
-    const ctx = videoCanvas.getContext("2d");
-    drawDetections(ctx, videoCanvas.width, videoCanvas.height, previewVideo.videoWidth, previewVideo.videoHeight, dets);
-    return dets;
-  }
-
-  detectFrameBtn.addEventListener("click", async () => {
-    if(!modelReady){ setStatus("error","Model not ready","check setup instructions below"); setupCard.classList.add("show"); return; }
-    detectFrameBtn.disabled = true; detectFrameBtn.textContent = "Running\u2026";
-    try{
-      resetTracking();
-      const dets = await detectVideoFrame(false);
-      if(dets) renderResults(dets);
-    }catch(err){ console.error(err); setStatus("error","Inference failed", String(err.message||err)); }
-    detectFrameBtn.disabled = false; detectFrameBtn.textContent = "Detect current frame";
-  });
-
-  async function liveLoop(){
-    if(!liveActive) return;
-    const t0 = performance.now();
-    try{
-      const dets = await detectVideoFrame(true);
-      if(dets) renderResults(dets);
-      const dt = performance.now() - t0;
-      fpsVal.textContent = (1000/Math.max(dt,1)).toFixed(1);
-    }catch(err){ console.error(err); }
-    if(liveActive) liveLoopHandle = requestAnimationFrame(liveLoop);
-  }
-
-  function stopLiveDetection(){
-    liveActive = false;
-    if(liveLoopHandle) cancelAnimationFrame(liveLoopHandle);
-    liveDetectBtn.textContent = "Start live detection";
-    liveDetectBtn.classList.remove("active");
-    fpsChip.classList.remove("show");
-    resetTracking();
-  }
-
-  liveDetectBtn.addEventListener("click", () => {
-    if(!modelReady){ setStatus("error","Model not ready","check setup instructions below"); setupCard.classList.add("show"); return; }
-    if(liveActive){ stopLiveDetection(); return; }
-    resetTracking();
-    liveActive = true;
-    liveDetectBtn.textContent = "Stop live detection";
-    liveDetectBtn.classList.add("active");
-    fpsChip.classList.add("show");
-    if(previewVideo.paused) previewVideo.play().catch(()=>{});
-    liveLoop();
-  });
-
-  clearVideoBtn.addEventListener("click", () => {
-    stopLiveDetection();
-    previewVideo.pause(); previewVideo.src = "";
-    videoStageWrap.classList.remove("show"); hideResults();
-    videoInput.value = "";
-  });
-
-  window.addEventListener("resize", () => { if(videoStageWrap.classList.contains("show")) sizeCanvasToEl(previewVideo, videoCanvas); });
 
 })();
 </script>
