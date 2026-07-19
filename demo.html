@@ -103,6 +103,7 @@
 
   /* mode tabs */
   .tabs{ display:flex; gap:0; border:1px solid var(--line); width:fit-content; margin-bottom:24px; }
+  .tabs #tabVideoBtn{ display:none; }
   .tab-btn{
     font-family: var(--mono); font-size:13px; padding:10px 22px; background:transparent; color: var(--ink-muted);
     border:none; cursor:pointer; border-right:1px solid var(--line); transition: all 0.15s;
@@ -132,6 +133,7 @@
   /* stage (preview + canvas overlay) */
   .stage-wrap{ display:none; }
   .stage-wrap.show{ display:block; }
+  #videoPane{ display:none !important; }
   .stage{
     position:relative; width:100%; background: var(--bg-panel-alt); border:1px solid var(--line);
     display:flex; align-items:center; justify-content:center; overflow:hidden; min-height: 240px;
@@ -209,16 +211,16 @@
       </div>
 
       <div class="setup-card" id="setupCard">
-        <h3>Model not found — one export step to go live</h3>
-        <p>This page looks for a trained model at <code>model/yolo11n_visdrone.onnx</code>. Export your trained weights from the training notebook and drop the file in:</p>
+        <h3>Model not found — check the ONNX export path</h3>
+        <p>This page looks for a trained model at <code>models/best.onnx</code>. If you retrain the model, export it into that path so the image demo can load it automatically:</p>
         <pre>from ultralytics import YOLO
 
 model = YOLO(best_weights)   # your trained best.pt
 model.export(format="onnx", imgsz=640, opset=12)
+model.export(format="onnx", imgsz=640, opset=12)
 # produces best.onnx next to best.pt</pre>
         <ol>
-          <li>Rename the exported file to <code>yolo11n_visdrone.onnx</code>.</li>
-          <li>Place it at <code>model/yolo11n_visdrone.onnx</code> in this repository.</li>
+          <li>Place the exported file at <code>models/best.onnx</code> in this repository.</li>
           <li>Commit and push — GitHub Pages will pick it up automatically.</li>
           <li>Reload this page, or hit <strong>Retry</strong> above once it's pushed.</li>
         </ol>
@@ -226,7 +228,6 @@ model.export(format="onnx", imgsz=640, opset=12)
 
       <div class="tabs" role="tablist">
         <button class="tab-btn active" id="tabImageBtn" role="tab" aria-selected="true">Image</button>
-        <button class="tab-btn" id="tabVideoBtn" role="tab" aria-selected="false">Video</button>
       </div>
 
       <div class="controls-row">
@@ -260,28 +261,6 @@ model.export(format="onnx", imgsz=640, opset=12)
         </div>
       </div>
 
-      <!-- VIDEO MODE -->
-      <div id="videoPane" style="display:none;">
-        <div class="dropzone" id="videoDropzone" tabindex="0" role="button" aria-label="Upload a video">
-          <div class="dz-icon">&#9646;&#9646;</div>
-          <h3>Drop a video, or click to browse</h3>
-          <p>MP4 or WebM &middot; short clips work best &middot; runs entirely on-device</p>
-          <input type="file" id="videoInput" accept="video/*">
-        </div>
-        <div class="stage-wrap" id="videoStageWrap">
-          <div class="stage bbox" id="videoStage">
-            <video id="previewVideo" controls playsinline muted></video>
-            <canvas id="videoCanvas"></canvas>
-          </div>
-          <div class="stage-actions">
-            <button class="btn btn-primary" id="detectFrameBtn">Detect current frame</button>
-            <button class="btn btn-ghost" id="liveDetectBtn">Start live detection</button>
-            <span class="live-fps" id="fpsChip">FPS: <span id="fpsVal">0.0</span></span>
-            <button class="btn btn-ghost" id="clearVideoBtn">Clear</button>
-          </div>
-        </div>
-      </div>
-
       <div class="results-panel" id="resultsPanel">
         <div class="results-list">
           <h3>Detections</h3>
@@ -309,7 +288,7 @@ model.export(format="onnx", imgsz=640, opset=12)
   "use strict";
 
   // ---- config ----
-  const MODEL_URL = "./model/yolo11n_visdrone.onnx";
+  const MODEL_URL = "./models/best.onnx";
   const IMG_SIZE = 640;
   const IOU_THRESH = 0.45;
   const CLASS_NAMES = ["pedestrian","people","bicycle","car","van","truck","tricycle","awning-tricycle","bus","motor"];
@@ -379,22 +358,15 @@ model.export(format="onnx", imgsz=640, opset=12)
 
   // ---- tabs ----
   const tabImageBtn = document.getElementById("tabImageBtn");
-  const tabVideoBtn = document.getElementById("tabVideoBtn");
   const imagePane = document.getElementById("imagePane");
-  const videoPane = document.getElementById("videoPane");
-  tabImageBtn.addEventListener("click", () => {
-    tabImageBtn.classList.add("active"); tabImageBtn.setAttribute("aria-selected","true");
-    tabVideoBtn.classList.remove("active"); tabVideoBtn.setAttribute("aria-selected","false");
-    imagePane.style.display = ""; videoPane.style.display = "none";
-    stopLiveDetection();
-    hideResults();
-  });
-  tabVideoBtn.addEventListener("click", () => {
-    tabVideoBtn.classList.add("active"); tabVideoBtn.setAttribute("aria-selected","true");
-    tabImageBtn.classList.remove("active"); tabImageBtn.setAttribute("aria-selected","false");
-    videoPane.style.display = ""; imagePane.style.display = "none";
-    hideResults();
-  });
+  if (tabImageBtn && imagePane) {
+    tabImageBtn.addEventListener("click", () => {
+      tabImageBtn.classList.add("active");
+      tabImageBtn.setAttribute("aria-selected","true");
+      imagePane.style.display = "";
+      hideResults();
+    });
+  }
 
   // ---- results panel ----
   const resultsPanel = document.getElementById("resultsPanel");
@@ -648,95 +620,99 @@ model.export(format="onnx", imgsz=640, opset=12)
 
   // ================= VIDEO MODE =================
   const videoDropzone = document.getElementById("videoDropzone");
-  const videoInput = document.getElementById("videoInput");
-  const videoStageWrap = document.getElementById("videoStageWrap");
-  const previewVideo = document.getElementById("previewVideo");
-  const videoCanvas = document.getElementById("videoCanvas");
-  const detectFrameBtn = document.getElementById("detectFrameBtn");
-  const liveDetectBtn = document.getElementById("liveDetectBtn");
-  const clearVideoBtn = document.getElementById("clearVideoBtn");
-  const fpsChip = document.getElementById("fpsChip");
-  const fpsVal = document.getElementById("fpsVal");
+  if (videoDropzone) {
+    const videoInput = document.getElementById("videoInput");
+    const videoStageWrap = document.getElementById("videoStageWrap");
+    const previewVideo = document.getElementById("previewVideo");
+    const videoCanvas = document.getElementById("videoCanvas");
+    const detectFrameBtn = document.getElementById("detectFrameBtn");
+    const liveDetectBtn = document.getElementById("liveDetectBtn");
+    const clearVideoBtn = document.getElementById("clearVideoBtn");
+    const fpsChip = document.getElementById("fpsChip");
+    const fpsVal = document.getElementById("fpsVal");
 
-  let liveLoopHandle = null;
-  let liveActive = false;
+    let liveActive = false;
+    let liveRaf = null;
+    let lastLiveTs = 0;
+    let currentVideoUrl = "";
 
-  function handleVideoFile(file){
-    const url = URL.createObjectURL(file);
-    previewVideo.onloadedmetadata = () => {
-      videoStageWrap.classList.add("show");
+    function handleVideoFile(file){
+      if(!file) return;
+      if(currentVideoUrl) URL.revokeObjectURL(currentVideoUrl);
+      currentVideoUrl = URL.createObjectURL(file);
+      previewVideo.onloadedmetadata = () => {
+        videoStageWrap.classList.add("show");
+        sizeCanvasToEl(previewVideo, videoCanvas);
+      };
+      previewVideo.src = currentVideoUrl;
+      previewVideo.load();
+    }
+
+    wireDropzone(videoDropzone, videoInput, handleVideoFile);
+
+    async function runCurrentVideoFrame(){
+      if(!session || !previewVideo.videoWidth || !previewVideo.videoHeight) return;
       sizeCanvasToEl(previewVideo, videoCanvas);
+      const raw = await runInference(previewVideo, previewVideo.videoWidth, previewVideo.videoHeight);
+      const dets = raw;
+      const ctx = videoCanvas.getContext("2d");
+      drawDetections(ctx, videoCanvas.width, videoCanvas.height, previewVideo.videoWidth, previewVideo.videoHeight, dets);
+      renderResults(dets);
+    }
+
+    detectFrameBtn.addEventListener("click", async () => {
+      if(!previewVideo.src) return;
+      detectFrameBtn.disabled = true; detectFrameBtn.textContent = "Running…";
+      try{
+        await runCurrentVideoFrame();
+      } finally {
+        detectFrameBtn.disabled = false; detectFrameBtn.textContent = "Detect current frame";
+      }
+    });
+
+    async function liveLoop(ts){
+      if(!liveActive) return;
+      if(ts - lastLiveTs > 180){
+        const start = performance.now();
+        await runCurrentVideoFrame();
+        const dt = performance.now() - start;
+        fpsVal.textContent = (1000/Math.max(dt,1)).toFixed(1);
+        lastLiveTs = ts;
+      }
+      liveRaf = requestAnimationFrame(liveLoop);
+    }
+
+    function stopLiveDetection(){
+      liveActive = false;
+      if(liveRaf) cancelAnimationFrame(liveRaf);
+      liveRaf = null;
+      liveDetectBtn.textContent = "Start live detection";
+      liveDetectBtn.classList.remove("active");
+      fpsChip.classList.remove("show");
+    }
+
+    liveDetectBtn.addEventListener("click", () => {
+      if(!previewVideo.src) return;
+      if(liveActive){ stopLiveDetection(); return; }
+      liveActive = true;
+      lastLiveTs = 0;
+      liveDetectBtn.textContent = "Stop live detection";
+      liveDetectBtn.classList.add("active");
+      fpsChip.classList.add("show");
+      if(previewVideo.paused) previewVideo.play().catch(()=>{});
+      liveRaf = requestAnimationFrame(liveLoop);
+    });
+
+    clearVideoBtn.addEventListener("click", () => {
+      stopLiveDetection();
+      previewVideo.pause(); previewVideo.src = "";
+      videoStageWrap.classList.remove("show");
+      videoCanvas.getContext("2d").clearRect(0,0,videoCanvas.width,videoCanvas.height);
+      videoInput.value = "";
+      if(currentVideoUrl) URL.revokeObjectURL(currentVideoUrl);
+      currentVideoUrl = "";
       hideResults();
-    };
-    previewVideo.src = url;
+    });
+
+    window.addEventListener("resize", () => { if(videoStageWrap.classList.contains("show")) sizeCanvasToEl(previewVideo, videoCanvas); });
   }
-  wireDropzone(videoDropzone, videoInput, handleVideoFile);
-
-  async function detectVideoFrame(useSmoothing){
-    if(!modelReady) return null;
-    sizeCanvasToEl(previewVideo, videoCanvas);
-    const raw = await runInference(previewVideo, previewVideo.videoWidth, previewVideo.videoHeight);
-    const dets = useSmoothing ? smoothTrack(raw) : raw;
-    const ctx = videoCanvas.getContext("2d");
-    drawDetections(ctx, videoCanvas.width, videoCanvas.height, previewVideo.videoWidth, previewVideo.videoHeight, dets);
-    return dets;
-  }
-
-  detectFrameBtn.addEventListener("click", async () => {
-    if(!modelReady){ setStatus("error","Model not ready","check setup instructions below"); setupCard.classList.add("show"); return; }
-    detectFrameBtn.disabled = true; detectFrameBtn.textContent = "Running\u2026";
-    try{
-      resetTracking();
-      const dets = await detectVideoFrame(false);
-      if(dets) renderResults(dets);
-    }catch(err){ console.error(err); setStatus("error","Inference failed", String(err.message||err)); }
-    detectFrameBtn.disabled = false; detectFrameBtn.textContent = "Detect current frame";
-  });
-
-  async function liveLoop(){
-    if(!liveActive) return;
-    const t0 = performance.now();
-    try{
-      const dets = await detectVideoFrame(true);
-      if(dets) renderResults(dets);
-      const dt = performance.now() - t0;
-      fpsVal.textContent = (1000/Math.max(dt,1)).toFixed(1);
-    }catch(err){ console.error(err); }
-    if(liveActive) liveLoopHandle = requestAnimationFrame(liveLoop);
-  }
-
-  function stopLiveDetection(){
-    liveActive = false;
-    if(liveLoopHandle) cancelAnimationFrame(liveLoopHandle);
-    liveDetectBtn.textContent = "Start live detection";
-    liveDetectBtn.classList.remove("active");
-    fpsChip.classList.remove("show");
-    resetTracking();
-  }
-
-  liveDetectBtn.addEventListener("click", () => {
-    if(!modelReady){ setStatus("error","Model not ready","check setup instructions below"); setupCard.classList.add("show"); return; }
-    if(liveActive){ stopLiveDetection(); return; }
-    resetTracking();
-    liveActive = true;
-    liveDetectBtn.textContent = "Stop live detection";
-    liveDetectBtn.classList.add("active");
-    fpsChip.classList.add("show");
-    if(previewVideo.paused) previewVideo.play().catch(()=>{});
-    liveLoop();
-  });
-
-  clearVideoBtn.addEventListener("click", () => {
-    stopLiveDetection();
-    previewVideo.pause(); previewVideo.src = "";
-    videoStageWrap.classList.remove("show"); hideResults();
-    videoInput.value = "";
-  });
-
-  window.addEventListener("resize", () => { if(videoStageWrap.classList.contains("show")) sizeCanvasToEl(previewVideo, videoCanvas); });
-
-})();
-</script>
-
-</body>
-</html>
