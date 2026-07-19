@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Live Demo — YOLO11n on VisDrone2019</title>
-<meta name="description" content="Run the trained YOLO11n aerial detector on your own images and video, entirely in your browser.">
+<title>Image Demo — YOLO11n on VisDrone2019</title>
+<meta name="description" content="Static browser demo for quick image checks, with Streamlit recommended for video inference.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -190,9 +190,12 @@
 <main>
   <div class="page-head">
     <div class="wrap">
-      <div class="hero-tag">LIVE_DEMO // CLIENT-SIDE INFERENCE</div>
-      <h1>Run the detector on your own image or video.</h1>
-      <p>Inference happens entirely in your browser via ONNX Runtime Web — nothing you upload leaves this page. Drag and drop, paste from clipboard, or choose a file below.</p>
+      <div class="hero-tag">IMAGE_FALLBACK // CLIENT-SIDE INFERENCE</div>
+      <h1>Run the detector on your own image.</h1>
+      <p>This page is the static fallback for quick browser checks. Use Streamlit for the full video demo, then come back here when you only need fast image previewing.</p>
+      <div class="hero-actions" style="margin-top:20px;">
+        <a class="btn btn-primary" href="https://aerialvision-ai-uzairmalikdev.streamlit.app/" target="_blank" rel="noopener">Open Streamlit demo →</a>
+      </div>
     </div>
   </div>
 

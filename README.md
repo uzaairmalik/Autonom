@@ -2,6 +2,12 @@
 
 An FYP project for detecting objects in aerial drone imagery using YOLOv8.
 
+## Public Entry Points
+
+- Landing page: GitHub Pages site at `https://uzaairmalik.github.io/Autonom/`
+- Primary demo: Streamlit app for image and video inference
+- Static fallback: `demo.html` for quick browser-based image checks
+
 ## Demo Flow
 
 ```
@@ -39,6 +45,8 @@ streamlit run app.py
 ```
 
 Open `http://localhost:8501` in your browser.
+
+For the deployed demo, publish `app.py` to Streamlit and link it from the landing page.
 
 ## Detectable Classes
 
