@@ -217,7 +217,6 @@
 
 model = YOLO(best_weights)   # your trained best.pt
 model.export(format="onnx", imgsz=640, opset=12)
-model.export(format="onnx", imgsz=640, opset=12)
 # produces best.onnx next to best.pt</pre>
         <ol>
           <li>Place the exported file at <code>models/best.onnx</code> in this repository.</li>
@@ -359,14 +358,12 @@ model.export(format="onnx", imgsz=640, opset=12)
   // ---- tabs ----
   const tabImageBtn = document.getElementById("tabImageBtn");
   const imagePane = document.getElementById("imagePane");
-  if (tabImageBtn && imagePane) {
-    tabImageBtn.addEventListener("click", () => {
-      tabImageBtn.classList.add("active");
-      tabImageBtn.setAttribute("aria-selected","true");
-      imagePane.style.display = "";
-      hideResults();
-    });
-  }
+  tabImageBtn.addEventListener("click", () => {
+    tabImageBtn.classList.add("active");
+    tabImageBtn.setAttribute("aria-selected","true");
+    if (imagePane) imagePane.style.display = "";
+    hideResults();
+  });
 
   // ---- results panel ----
   const resultsPanel = document.getElementById("resultsPanel");
@@ -620,99 +617,95 @@ model.export(format="onnx", imgsz=640, opset=12)
 
   // ================= VIDEO MODE =================
   const videoDropzone = document.getElementById("videoDropzone");
-  if (videoDropzone) {
-    const videoInput = document.getElementById("videoInput");
-    const videoStageWrap = document.getElementById("videoStageWrap");
-    const previewVideo = document.getElementById("previewVideo");
-    const videoCanvas = document.getElementById("videoCanvas");
-    const detectFrameBtn = document.getElementById("detectFrameBtn");
-    const liveDetectBtn = document.getElementById("liveDetectBtn");
-    const clearVideoBtn = document.getElementById("clearVideoBtn");
-    const fpsChip = document.getElementById("fpsChip");
-    const fpsVal = document.getElementById("fpsVal");
+  const videoInput = document.getElementById("videoInput");
+  const videoStageWrap = document.getElementById("videoStageWrap");
+  const previewVideo = document.getElementById("previewVideo");
+  const videoCanvas = document.getElementById("videoCanvas");
+  const detectFrameBtn = document.getElementById("detectFrameBtn");
+  const liveDetectBtn = document.getElementById("liveDetectBtn");
+  const clearVideoBtn = document.getElementById("clearVideoBtn");
+  const fpsChip = document.getElementById("fpsChip");
+  const fpsVal = document.getElementById("fpsVal");
 
-    let liveActive = false;
-    let liveRaf = null;
-    let lastLiveTs = 0;
-    let currentVideoUrl = "";
+  let liveLoopHandle = null;
+  let liveActive = false;
 
-    function handleVideoFile(file){
-      if(!file) return;
-      if(currentVideoUrl) URL.revokeObjectURL(currentVideoUrl);
-      currentVideoUrl = URL.createObjectURL(file);
-      previewVideo.onloadedmetadata = () => {
-        videoStageWrap.classList.add("show");
-        sizeCanvasToEl(previewVideo, videoCanvas);
-      };
-      previewVideo.src = currentVideoUrl;
-      previewVideo.load();
-    }
-
-    wireDropzone(videoDropzone, videoInput, handleVideoFile);
-
-    async function runCurrentVideoFrame(){
-      if(!session || !previewVideo.videoWidth || !previewVideo.videoHeight) return;
+  function handleVideoFile(file){
+    const url = URL.createObjectURL(file);
+    previewVideo.onloadedmetadata = () => {
+      videoStageWrap.classList.add("show");
       sizeCanvasToEl(previewVideo, videoCanvas);
-      const raw = await runInference(previewVideo, previewVideo.videoWidth, previewVideo.videoHeight);
-      const dets = raw;
-      const ctx = videoCanvas.getContext("2d");
-      drawDetections(ctx, videoCanvas.width, videoCanvas.height, previewVideo.videoWidth, previewVideo.videoHeight, dets);
-      renderResults(dets);
-    }
-
-    detectFrameBtn.addEventListener("click", async () => {
-      if(!previewVideo.src) return;
-      detectFrameBtn.disabled = true; detectFrameBtn.textContent = "Running…";
-      try{
-        await runCurrentVideoFrame();
-      } finally {
-        detectFrameBtn.disabled = false; detectFrameBtn.textContent = "Detect current frame";
-      }
-    });
-
-    async function liveLoop(ts){
-      if(!liveActive) return;
-      if(ts - lastLiveTs > 180){
-        const start = performance.now();
-        await runCurrentVideoFrame();
-        const dt = performance.now() - start;
-        fpsVal.textContent = (1000/Math.max(dt,1)).toFixed(1);
-        lastLiveTs = ts;
-      }
-      liveRaf = requestAnimationFrame(liveLoop);
-    }
-
-    function stopLiveDetection(){
-      liveActive = false;
-      if(liveRaf) cancelAnimationFrame(liveRaf);
-      liveRaf = null;
-      liveDetectBtn.textContent = "Start live detection";
-      liveDetectBtn.classList.remove("active");
-      fpsChip.classList.remove("show");
-    }
-
-    liveDetectBtn.addEventListener("click", () => {
-      if(!previewVideo.src) return;
-      if(liveActive){ stopLiveDetection(); return; }
-      liveActive = true;
-      lastLiveTs = 0;
-      liveDetectBtn.textContent = "Stop live detection";
-      liveDetectBtn.classList.add("active");
-      fpsChip.classList.add("show");
-      if(previewVideo.paused) previewVideo.play().catch(()=>{});
-      liveRaf = requestAnimationFrame(liveLoop);
-    });
-
-    clearVideoBtn.addEventListener("click", () => {
-      stopLiveDetection();
-      previewVideo.pause(); previewVideo.src = "";
-      videoStageWrap.classList.remove("show");
-      videoCanvas.getContext("2d").clearRect(0,0,videoCanvas.width,videoCanvas.height);
-      videoInput.value = "";
-      if(currentVideoUrl) URL.revokeObjectURL(currentVideoUrl);
-      currentVideoUrl = "";
       hideResults();
-    });
-
-    window.addEventListener("resize", () => { if(videoStageWrap.classList.contains("show")) sizeCanvasToEl(previewVideo, videoCanvas); });
+    };
+    previewVideo.src = url;
   }
+  wireDropzone(videoDropzone, videoInput, handleVideoFile);
+
+  async function detectVideoFrame(useSmoothing){
+    if(!modelReady) return null;
+    sizeCanvasToEl(previewVideo, videoCanvas);
+    const raw = await runInference(previewVideo, previewVideo.videoWidth, previewVideo.videoHeight);
+    const dets = useSmoothing ? smoothTrack(raw) : raw;
+    const ctx = videoCanvas.getContext("2d");
+    drawDetections(ctx, videoCanvas.width, videoCanvas.height, previewVideo.videoWidth, previewVideo.videoHeight, dets);
+    return dets;
+  }
+
+  detectFrameBtn.addEventListener("click", async () => {
+    if(!modelReady){ setStatus("error","Model not ready","check setup instructions below"); setupCard.classList.add("show"); return; }
+    detectFrameBtn.disabled = true; detectFrameBtn.textContent = "Running\u2026";
+    try{
+      resetTracking();
+      const dets = await detectVideoFrame(false);
+      if(dets) renderResults(dets);
+    }catch(err){ console.error(err); setStatus("error","Inference failed", String(err.message||err)); }
+    detectFrameBtn.disabled = false; detectFrameBtn.textContent = "Detect current frame";
+  });
+
+  async function liveLoop(){
+    if(!liveActive) return;
+    const t0 = performance.now();
+    try{
+      const dets = await detectVideoFrame(true);
+      if(dets) renderResults(dets);
+      const dt = performance.now() - t0;
+      fpsVal.textContent = (1000/Math.max(dt,1)).toFixed(1);
+    }catch(err){ console.error(err); }
+    if(liveActive) liveLoopHandle = requestAnimationFrame(liveLoop);
+  }
+
+  function stopLiveDetection(){
+    liveActive = false;
+    if(liveLoopHandle) cancelAnimationFrame(liveLoopHandle);
+    liveDetectBtn.textContent = "Start live detection";
+    liveDetectBtn.classList.remove("active");
+    fpsChip.classList.remove("show");
+    resetTracking();
+  }
+
+  liveDetectBtn.addEventListener("click", () => {
+    if(!modelReady){ setStatus("error","Model not ready","check setup instructions below"); setupCard.classList.add("show"); return; }
+    if(liveActive){ stopLiveDetection(); return; }
+    resetTracking();
+    liveActive = true;
+    liveDetectBtn.textContent = "Stop live detection";
+    liveDetectBtn.classList.add("active");
+    fpsChip.classList.add("show");
+    if(previewVideo.paused) previewVideo.play().catch(()=>{});
+    liveLoop();
+  });
+
+  clearVideoBtn.addEventListener("click", () => {
+    stopLiveDetection();
+    previewVideo.pause(); previewVideo.src = "";
+    videoStageWrap.classList.remove("show"); hideResults();
+    videoInput.value = "";
+  });
+
+  window.addEventListener("resize", () => { if(videoStageWrap.classList.contains("show")) sizeCanvasToEl(previewVideo, videoCanvas); });
+
+})();
+</script>
+
+</body>
+</html>
