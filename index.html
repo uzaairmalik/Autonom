@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Aerial Object Detection — YOLO11n on VisDrone2019</title>
 <meta name="description" content="Fine-tuning YOLO11n on VisDrone2019-DET for aerial object detection, with SAHI-based small-object enhancement. CSC354 Machine Learning semester project.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0f1c'/%3E%3Cpath d='M4 4v9M4 4h9' stroke='%23e8a33d' stroke-width='3' fill='none'/%3E%3Cpath d='M28 28v-9M28 28h-9' stroke='%23e8a33d' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<meta property="og:title" content="Aerial Object Detection — YOLO11n on VisDrone2019">
+<meta property="og:description" content="Fine-tuned YOLO11n on VisDrone2019-DET, evaluated with a full metric suite and enhanced with SAHI small-object detection. CSC354 semester project.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://uzaairmalik.github.io/Autonom/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Aerial Object Detection — YOLO11n on VisDrone2019">
+<meta name="twitter:description" content="Fine-tuned YOLO11n on VisDrone2019-DET, evaluated with a full metric suite and enhanced with SAHI small-object detection.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -162,6 +170,7 @@
     letter-spacing: 0.04em; transition: color 0.15s;
   }
   .navlinks a:hover{ color: var(--accent); }
+  .navlinks a.active{ color: var(--accent); }
   .nav-cta{
     font-family: var(--mono); font-size: 12px; color: var(--bg); background: var(--accent);
     padding: 8px 14px; text-decoration: none; letter-spacing: 0.03em; font-weight: 600;
@@ -178,6 +187,40 @@
   .navlinks-mobile-hide{ }
   @media (max-width: 760px){
     .navlinks{ display: none; }
+  }
+
+  .skip-link{
+    position: absolute; left: -999px; top: 0; z-index: 100;
+    background: var(--accent); color: var(--bg); padding: 10px 16px;
+    font-family: var(--mono); font-size: 13px; text-decoration: none;
+  }
+  .skip-link:focus{ left: 12px; top: 12px; }
+
+  .menu-toggle{
+    display: none; flex-direction: column; justify-content: center; gap: 5px;
+    width: 32px; height: 32px; background: none; border: 1px solid var(--line);
+    cursor: pointer; padding: 0;
+  }
+  .menu-toggle span{ display:block; width: 16px; height: 2px; background: var(--ink); margin: 0 auto; transition: transform 0.2s, opacity 0.2s; }
+  .menu-toggle[aria-expanded="true"] span:nth-child(1){ transform: translateY(7px) rotate(45deg); }
+  .menu-toggle[aria-expanded="true"] span:nth-child(2){ opacity: 0; }
+  .menu-toggle[aria-expanded="true"] span:nth-child(3){ transform: translateY(-7px) rotate(-45deg); }
+
+  .mobile-nav{
+    display: none; flex-direction: column; background: var(--bg);
+    border-bottom: 1px solid var(--line); padding: 8px 28px 16px;
+  }
+  .mobile-nav.open{ display: flex; }
+  .mobile-nav a{
+    font-family: var(--mono); font-size: 14px; color: var(--ink-muted); text-decoration: none;
+    padding: 12px 0; border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav a:last-child{ border-bottom: none; }
+  .mobile-nav a:hover{ color: var(--accent); }
+
+  @media (max-width: 760px){
+    .menu-toggle{ display: flex; }
+    .nav-cta.navlinks-mobile-hide{ display: none; }
   }
 
   /* -------- hero -------- */
@@ -356,7 +399,6 @@
   .reveal{ opacity: 0; transform: translateY(14px); transition: opacity 0.5s ease, transform 0.5s ease; }
   .reveal.in{ opacity: 1; transform: translateY(0); }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
 </head>
 <body>
 
@@ -375,10 +417,24 @@
     </ul>
     <div class="nav-actions">
       <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme" title="Toggle light/dark">☀️</button>
-      <a class="nav-cta" href="https://github.com/uzaairmalik/Autonom" target="_blank" rel="noopener">GitHub ↗</a>
+      <a class="nav-cta navlinks-mobile-hide" href="https://github.com/uzaairmalik/Autonom" target="_blank" rel="noopener">GitHub ↗</a>
+      <button class="menu-toggle" id="menu-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="mobileNav">
+        <span></span><span></span><span></span>
+      </button>
     </div>
   </nav>
+  <div class="mobile-nav" id="mobileNav">
+    <a href="#problem">Problem</a>
+    <a href="#dataset">Dataset</a>
+    <a href="#method">Method</a>
+    <a href="#results">Results</a>
+    <a href="#novelty">SAHI</a>
+    <a href="https://aerialvision-ai-uzairmalikdev.streamlit.app/" target="_blank" rel="noopener">Streamlit Demo ✦</a>
+    <a href="https://github.com/uzaairmalik/Autonom" target="_blank" rel="noopener">GitHub ↗</a>
+  </div>
 </header>
+
+<a class="skip-link" href="#top">Skip to content</a>
 
 <main id="top">
 
@@ -739,6 +795,36 @@
       dots += `<rect x="${(x-r).toFixed(1)}" y="${(y-r).toFixed(1)}" width="${(r*2).toFixed(1)}" height="${(r*2).toFixed(1)}" fill="none" stroke="#e8a33d" stroke-width="1" opacity="${(0.35+Math.random()*0.5).toFixed(2)}"/>`;
     }
     svg.innerHTML = dots;
+  })();
+
+  // mobile menu toggle
+  (function(){
+    const btn = document.getElementById("menu-toggle");
+    const panel = document.getElementById("mobileNav");
+    if(!btn || !panel) return;
+    btn.addEventListener("click", () => {
+      const open = panel.classList.toggle("open");
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    panel.querySelectorAll("a").forEach(a => a.addEventListener("click", () => {
+      panel.classList.remove("open");
+      btn.setAttribute("aria-expanded", "false");
+    }));
+  })();
+
+  // scroll-spy: highlight the active section's nav link
+  (function(){
+    const sections = ["problem","dataset","method","results","novelty"]
+      .map(id => document.getElementById(id)).filter(Boolean);
+    const links = document.querySelectorAll('.navlinks a[href^="#"]');
+    if(!sections.length || !links.length) return;
+    const spy = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if(!entry.isIntersecting) return;
+        links.forEach(l => l.classList.toggle("active", l.getAttribute("href") === "#" + entry.target.id));
+      });
+    }, { rootMargin: "-40% 0px -50% 0px" });
+    sections.forEach(s => spy.observe(s));
   })();
 </script>
 
