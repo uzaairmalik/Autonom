@@ -1,5 +1,244 @@
 """
 Aerial Object Detection — YOLO11n on VisDrone2019
+Single Streamlit app for image and video inference.
+"""
+
+import os
+import tempfile
+
+import pandas as pd
+import plotly.express as px
+import streamlit as st
+from PIL import Image
+
+from inference import detect_image, detect_video
+
+st.set_page_config(
+    page_title="Autonom · Streamlit Demo",
+    page_icon="□",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+SITE_URL = "https://uzaairmalik.github.io/Autonom/"
+
+if "counts" not in st.session_state:
+    st.session_state.counts = {}
+if "frame_history" not in st.session_state:
+    st.session_state.frame_history = []
+
+st.markdown(
+    """
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+      html, body, [class*='css'] { font-family: 'IBM Plex Sans', sans-serif; }
+      .hero {
+        background: linear-gradient(135deg, rgba(15,24,56,0.95), rgba(20,35,80,0.95));
+        border: 1px solid rgba(99,179,237,0.25); border-radius: 20px; padding: 2rem 2.2rem; margin-bottom: 1.5rem;
+      }
+      .eyebrow { font-family: 'IBM Plex Mono', monospace; letter-spacing: .12em; text-transform: uppercase; color: #e8a33d; font-size: .72rem; }
+      .title { font-size: clamp(2rem, 4vw, 2.7rem); font-weight: 800; margin: .35rem 0 .6rem; }
+      .sub { color: #8b98b8; margin: 0; }
+      .section { margin: 1.75rem 0; }
+      .card {
+        background: rgba(15,24,56,0.75); border: 1px solid rgba(233,237,247,0.10); border-radius: 16px; padding: 1rem;
+      }
+      .footer { text-align:center; color:#576082; font-family:'IBM Plex Mono', monospace; font-size:.78rem; margin-top:2rem; padding-top:1rem; border-top:1px solid rgba(233,237,247,0.08); }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+with st.sidebar:
+    st.markdown("<div style='text-align:center;padding:0.75rem 0 0.5rem;'><div style='font-size:2rem;'>□</div><div style='font-family:IBM Plex Mono, monospace;font-weight:700;color:#e8a33d;'>VISDRONE // YOLO11n</div><div style='font-size:.75rem;color:#8b98b8;'>Single Streamlit demo</div></div>", unsafe_allow_html=True)
+    st.markdown("### Settings")
+    conf = st.slider("Confidence", 0.10, 0.90, 0.25, 0.05)
+    iou = st.slider("IoU (video NMS)", 0.10, 0.90, 0.45, 0.05)
+    st.markdown("### Links")
+    st.markdown(f"[Project overview]({SITE_URL})")
+
+st.markdown(
+    f"""
+    <div class="hero">
+      <div class="eyebrow">Live Demo // Streamlit</div>
+      <div class="title">Image and video detection in one place</div>
+      <p class="sub">Upload an aerial image for a quick check or a video for tracked multi-frame inference. There is no separate browser demo anymore.</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+CLASS_ICONS = {
+    "car": "🚗", "truck": "🚛", "bus": "🚌", "pedestrian": "🚶", "people": "🚶",
+    "bicycle": "🚲", "motor": "🏍️", "van": "🚐", "tricycle": "🛺", "awning-tricycle": "🛺",
+}
+
+
+def get_icon(name: str) -> str:
+    return CLASS_ICONS.get(name.lower(), "📦")
+
+
+tab_image, tab_video, tab_analytics, tab_eval = st.tabs(["Image Demo", "Video Demo", "Analytics", "Model Evaluation"])
+
+with tab_image:
+    uploaded_image = st.file_uploader("Drop an aerial image here", type=["jpg", "jpeg", "png"])
+
+    if uploaded_image is None:
+        st.info("Upload an aerial image to get started.")
+    else:
+        image = Image.open(uploaded_image)
+        source_name = uploaded_image.name
+        col1, col2 = st.columns(2, gap="large")
+
+        with col1:
+            st.markdown(f"**Input · {source_name}**")
+            st.image(image, use_container_width=True)
+
+        suffix = os.path.splitext(source_name)[1].lower() or ".png"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            image.save(tmp.name)
+            tmp_path = tmp.name
+
+        result_path = None
+        counts = {}
+        try:
+            result_path, counts, inf_time = detect_image(tmp_path, "outputs/result.jpg", conf)
+            st.session_state.counts = counts
+            st.session_state.frame_history = []
+            st.session_state.inf_time = inf_time
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+        with col2:
+            st.markdown("**Annotated output**")
+            if result_path and os.path.exists(result_path):
+                st.image(result_path, use_container_width=True)
+                with open(result_path, "rb") as f:
+                    st.download_button("Download annotated image", f, file_name="aerial_detection_result.jpg", mime="image/jpeg")
+            else:
+                st.warning("No annotated image was generated.")
+
+        st.markdown("### Detections")
+        if counts:
+            cols = st.columns(min(len(counts), 6))
+            total = sum(counts.values())
+            for i, (cls_name, cnt) in enumerate(sorted(counts.items(), key=lambda x: -x[1])):
+                with cols[i % len(cols)]:
+                    st.markdown(f"<div class='card' style='text-align:center'><div style='font-size:1.4rem'>{get_icon(cls_name)}</div><div style='font-size:1.8rem;font-weight:800;color:#e8a33d'>{cnt}</div><div style='font-size:.75rem;color:#8b98b8;text-transform:capitalize'>{cls_name}</div></div>", unsafe_allow_html=True)
+            st.caption(f"{total} detected object-instances · conf ≥ {conf:.0%}")
+        else:
+            st.info("No detections above the current confidence threshold.")
+
+with tab_video:
+    uploaded_video = st.file_uploader("Drop an aerial video here", type=["mp4", "avi", "mov", "mkv"])
+
+    if uploaded_video is None:
+        st.info("Upload an aerial video to get started.")
+    else:
+        video_bytes = uploaded_video.read()
+        source_name = uploaded_video.name
+        col1, col2 = st.columns(2, gap="large")
+
+        with col1:
+            st.markdown(f"**Input · {source_name}**")
+            st.video(video_bytes)
+
+        suffix = os.path.splitext(source_name)[1].lower() or ".mp4"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(video_bytes)
+            tmp_path = tmp.name
+
+        output_path = "outputs/result.mp4"
+        progress = st.progress(0, text="Starting…")
+        counts = {}
+        history = []
+
+        try:
+            generator = detect_video(tmp_path, output_path, conf, iou)
+            while True:
+                frame_idx, total_frames, frame_counts, current_fps = next(generator)
+                counts = frame_counts
+                progress.progress(int((frame_idx + 1) / max(total_frames, 1) * 100), text=f"Frame {frame_idx+1}/{total_frames} · {current_fps:.1f} fps")
+        except StopIteration as exc:
+            if exc.value:
+                output_path, counts, history = exc.value
+                st.session_state.counts = counts
+                st.session_state.frame_history = history
+        except RuntimeError as exc:
+            st.error(f"Video processing failed: {exc}")
+            counts = {}
+        finally:
+            progress.empty()
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+        with col2:
+            st.markdown("**Annotated output (tracked)**")
+            if os.path.exists(output_path):
+                with open(output_path, "rb") as f:
+                    out_bytes = f.read()
+                st.video(out_bytes)
+                st.download_button("Download annotated video", out_bytes, file_name="aerial_detection_result.mp4", mime="video/mp4")
+            else:
+                st.warning("Could not generate annotated video.")
+
+        st.markdown("### Detections")
+        if counts:
+            cols = st.columns(min(len(counts), 6))
+            total = sum(counts.values())
+            for i, (cls_name, cnt) in enumerate(sorted(counts.items(), key=lambda x: -x[1])):
+                with cols[i % len(cols)]:
+                    st.markdown(f"<div class='card' style='text-align:center'><div style='font-size:1.4rem'>{get_icon(cls_name)}</div><div style='font-size:1.8rem;font-weight:800;color:#e8a33d'>{cnt}</div><div style='font-size:.75rem;color:#8b98b8;text-transform:capitalize'>{cls_name}</div></div>", unsafe_allow_html=True)
+            st.caption(f"{total} tracked object-instances across all frames · conf ≥ {conf:.0%}")
+        else:
+            st.info("No detections above the current confidence threshold.")
+
+with tab_analytics:
+    st.markdown("### Detection Analytics")
+    if st.session_state.counts:
+        if st.session_state.frame_history:
+            df = pd.DataFrame(st.session_state.frame_history).fillna(0)
+            df["Frame"] = df.index
+            df_melt = df.melt(id_vars=["Frame"], var_name="Class", value_name="Count")
+            fig = px.area(df_melt, x="Frame", y="Count", color="Class", title="Cumulative Object Counts over Time")
+            st.plotly_chart(fig, use_container_width=True)
+
+        df_dist = pd.DataFrame(list(st.session_state.counts.items()), columns=["Class", "Count"]).sort_values("Count", ascending=False)
+        fig_bar = px.bar(df_dist, x="Class", y="Count", color="Class", title="Total Object Distribution")
+        st.plotly_chart(fig_bar, use_container_width=True)
+    else:
+        st.info("Run detection in the Image Demo or Video Demo tab first.")
+
+with tab_eval:
+    st.markdown("### Model Evaluation Metrics")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("mAP@50", "32.4%")
+    c2.metric("Precision", "44.9%")
+    c3.metric("Recall", "34.7%")
+    c4, c5, c6 = st.columns(3)
+    c4.metric("mAP@50-95", "18.4%")
+    c5.metric("F1-score", "39.1%")
+    c6.metric("Inference speed", "65.0 FPS")
+
+    st.markdown("---")
+    per_class_df = pd.DataFrame({
+        "Class": ["car", "bus", "van", "motor", "pedestrian", "truck", "people", "tricycle", "awning-tricycle", "bicycle"],
+        "AP@50 (%)": [75.0, 46.5, 36.8, 36.3, 34.7, 29.1, 26.2, 20.8, 10.5, 8.5],
+    })
+    fig_ap = px.bar(per_class_df, x="AP@50 (%)", y="Class", orientation="h", color="AP@50 (%)", color_continuous_scale=["#c1554a", "#e8a33d"])
+    st.plotly_chart(fig_ap, use_container_width=True)
+
+    cm_paths = ["confusion_matrix.png", "models/confusion_matrix.png"]
+    cm_path = next((p for p in cm_paths if os.path.exists(p)), None)
+    if cm_path:
+        st.image(cm_path, caption="Confusion Matrix", use_container_width=True)
+    else:
+        st.info("Place confusion_matrix.png in the repo to show the matrix here.")
+
+st.markdown("<div class='footer'>Runs server-side via Ultralytics YOLO + ByteTrack · CSC354 Machine Learning semester project</div>", unsafe_allow_html=True)
+"""
+Aerial Object Detection — YOLO11n on VisDrone2019
 Streamlit demo for image and video detection with multi-object tracking.
 
 This app is the single demo surface for the project: quick image checks and
