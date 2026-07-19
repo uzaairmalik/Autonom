@@ -47,9 +47,17 @@ def detect_video(
     video_path: str,
     output_path: str = "outputs/result.mp4",
     conf: float = 0.25,
+    iou: float = 0.45,
 ) -> Generator[tuple[int, int, dict, float], None, tuple[str, dict, list]]:
     """
-    Run YOLO object detection on every frame of a video and write annotated output.
+    Run YOLO object detection + ByteTrack tracking on every frame of a video
+    and write an annotated output video.
+
+    Uses model.track(persist=True) rather than plain per-frame model() calls —
+    this gives each object a stable track ID across frames, which is what makes
+    the boxes hold steady instead of flickering/jittering frame to frame. Plain
+    per-frame detection has no memory between frames, so a single missed frame
+    (very common with a modest-mAP model) makes a box vanish and reappear.
 
     Yields (current_frame, total_frames, frame_counts, fps) for progress reporting.
     Returns (output_path, aggregate_counts, frame_counts_history) when complete.
@@ -58,6 +66,7 @@ def detect_video(
         video_path  : Path to the input video file.
         output_path : Where to save the annotated output video.
         conf        : YOLO confidence threshold.
+        iou         : NMS IoU threshold.
 
     Yields:
         (current_frame: int, total_frames: int, frame_counts: dict, fps: float)
@@ -76,9 +85,14 @@ def detect_video(
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    # Use mp4v codec — universally compatible with Streamlit's st.video()
+    # Write with mp4v first (safe, always available); re-encoded to H.264 below
+    # for actual browser playback — mp4v itself is NOT reliably browser-playable.
+    raw_path = output_path + ".raw.mp4"
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(output_path, fourcc, video_fps, (width, height))
+    writer = cv2.VideoWriter(raw_path, fourcc, video_fps, (width, height))
+
+    # Reset any tracker state left over from a previous call on this model instance.
+    model.predictor = None
 
     aggregate: Counter = Counter()
     frame_counts_history = []
@@ -91,7 +105,14 @@ def detect_video(
         if not ok:
             break
 
-        results = model(frame, conf=conf, verbose=False)
+        results = model.track(
+            frame,
+            persist=True,
+            conf=conf,
+            iou=iou,
+            tracker="bytetrack.yaml",
+            verbose=False,
+        )
 
         for r in results:
             annotated = r.plot()
@@ -101,7 +122,7 @@ def detect_video(
             classes = r.boxes.cls.tolist() if r.boxes is not None else []
             frame_counts = Counter([names[int(c)] for c in classes])
             aggregate.update(frame_counts)
-            
+
             frame_counts_history.append(dict(frame_counts))
 
             elapsed = time.time() - start_time
@@ -114,4 +135,35 @@ def detect_video(
     cap.release()
     writer.release()
 
-    return output_path, dict(aggregate), frame_counts_history
+    final_path = _reencode_for_browser(raw_path, output_path)
+
+    return final_path, dict(aggregate), frame_counts_history
+
+
+def _reencode_for_browser(raw_path: str, output_path: str) -> str:
+    """
+    Re-encode with ffmpeg to H.264/yuv420p, which browsers (and Streamlit's
+    st.video) reliably play back. Falls back to the raw mp4v file — with a
+    printed warning — if ffmpeg isn't available on the host.
+    """
+    import subprocess
+
+    try:
+        subprocess.run(
+            [
+                "ffmpeg", "-y", "-i", raw_path,
+                "-vcodec", "libx264", "-pix_fmt", "yuv420p", "-crf", "23",
+                output_path,
+            ],
+            check=True, capture_output=True,
+        )
+        if os.path.exists(raw_path):
+            os.remove(raw_path)
+        return output_path
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print(
+            "[WARN] ffmpeg re-encode failed or ffmpeg not installed — "
+            "output video may not play in all browsers. Add `ffmpeg` to "
+            "packages.txt on Streamlit Cloud, or `apt install ffmpeg` locally."
+        )
+        return raw_path

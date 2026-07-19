@@ -132,10 +132,16 @@ def run_video(model, src: Path, out_dir: Path, args):
     total  = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     writer = None
+    raw_path = None
+    out_path = None
     if not args.no_save:
         out_path = out_dir / (src.stem + "_detected.mp4")
+        raw_path = out_dir / (src.stem + "_detected.raw.mp4")
         fourcc   = cv2.VideoWriter_fourcc(*"mp4v")
-        writer   = cv2.VideoWriter(str(out_path), fourcc, fps, (width, height))
+        writer   = cv2.VideoWriter(str(raw_path), fourcc, fps, (width, height))
+
+    # Reset any tracker state left over from a previous call on this model instance.
+    model.predictor = None
 
     frame_idx  = 0
     total_dets = 0
@@ -146,7 +152,13 @@ def run_video(model, src: Path, out_dir: Path, args):
         if not ok:
             break
 
-        results  = model(frame, conf=args.conf, iou=args.iou, imgsz=args.imgsz, verbose=False)[0]
+        # model.track(persist=True) keeps a per-object track ID alive across
+        # frames (ByteTrack), which is what stops boxes from flickering —
+        # plain per-frame model() calls have no memory between frames.
+        results  = model.track(
+            frame, conf=args.conf, iou=args.iou, imgsz=args.imgsz,
+            persist=True, tracker="bytetrack.yaml", verbose=False,
+        )[0]
         annotated = results.plot()
         total_dets += len(results.boxes)
         frame_idx  += 1
@@ -177,7 +189,26 @@ def run_video(model, src: Path, out_dir: Path, args):
     print(f"  ├─ Total dets : {total_dets}")
     print(f"  ├─ Avg FPS    : {frame_idx/elapsed:.1f}")
     if not args.no_save:
-        print(f"  └─ Saved → {out_path}")
+        final_path = _reencode_for_browser(str(raw_path), str(out_path))
+        print(f"  └─ Saved → {final_path}")
+
+
+def _reencode_for_browser(raw_path: str, output_path: str) -> str:
+    """Re-encode with ffmpeg to H.264/yuv420p for reliable playback. Falls
+    back to the raw mp4v file if ffmpeg isn't installed."""
+    import subprocess
+    try:
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", raw_path, "-vcodec", "libx264",
+             "-pix_fmt", "yuv420p", "-crf", "23", output_path],
+            check=True, capture_output=True,
+        )
+        if os.path.exists(raw_path):
+            os.remove(raw_path)
+        return output_path
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("  [WARN] ffmpeg not found — output kept as mp4v, may not play in all players.")
+        return raw_path
 
 
 def main():

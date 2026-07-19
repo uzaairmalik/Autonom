@@ -61,6 +61,7 @@ with st.sidebar:
 
     st.markdown('<div class="sidebar-section-title">⚙️ Detection Settings</div>', unsafe_allow_html=True)
     conf = st.slider("Confidence Threshold", 0.10, 0.90, 0.25, 0.05)
+    iou = st.slider("IoU Threshold (NMS)", 0.10, 0.90, 0.45, 0.05)
 
     st.markdown('<div class="sidebar-section-title">📂 Sample Media</div>', unsafe_allow_html=True)
     sample_dir = "sample_images and sample_videos"
@@ -161,7 +162,7 @@ with tab_demo:
         frame_history = []
 
         try:
-            gen = detect_video(tmp_vid_path, output_vid_path, conf)
+            gen = detect_video(tmp_vid_path, output_vid_path, conf, iou)
             while True:
                 frame_idx, total_frames, frame_counts, current_fps = next(gen)
                 counts = frame_counts
@@ -237,10 +238,31 @@ with tab_analytics:
 
 with tab_eval:
     st.markdown("## 📈 Model Evaluation Metrics")
+    st.caption("From the actual training run — 100 epochs, VisDrone2019-DET validation split (548 images, 38,759 instances).")
     c1, c2, c3 = st.columns(3)
-    c1.metric("mAP@50", "0.925", "Target > 0.90")
-    c2.metric("Precision", "0.89", "Target > 0.85")
-    c3.metric("Recall", "0.87", "Target > 0.80")
+    c1.metric("mAP@50", "32.4%")
+    c2.metric("Precision", "44.9%")
+    c3.metric("Recall", "34.7%")
+    c4, c5, c6 = st.columns(3)
+    c4.metric("mAP@50-95", "18.4%")
+    c5.metric("F1-score", "39.1%")
+    c6.metric("Inference speed", "65.0 FPS")
+
+    st.markdown("---")
+    st.markdown("### Per-class AP@50")
+    per_class_df = pd.DataFrame({
+        "Class": ["car", "bus", "van", "motor", "pedestrian", "truck", "people", "tricycle", "awning-tricycle", "bicycle"],
+        "AP@50 (%)": [75.0, 46.5, 36.8, 36.3, 34.7, 29.1, 26.2, 20.8, 10.5, 8.5],
+    })
+    fig_ap = px.bar(per_class_df, x="AP@50 (%)", y="Class", orientation="h",
+                     color="AP@50 (%)", color_continuous_scale=["#c1554a", "#e8a33d"])
+    fig_ap.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                          font_color="#e2e8f0", yaxis={"categoryorder": "total ascending"})
+    st.plotly_chart(fig_ap, use_container_width=True)
+    st.caption(
+        "`car` (75.0%) and `bicycle` (8.5%) are the two extremes — the overall mean is pulled down "
+        "by rare, visually small classes rather than uniform weakness across the model."
+    )
 
     st.markdown("---")
     possible_paths = ["confusion_matrix.png", "models/confusion_matrix.png", "1783415382.png"]
@@ -248,7 +270,7 @@ with tab_eval:
     if cm_path:
         st.image(cm_path, caption="Confusion Matrix", use_container_width=True)
     else:
-        st.info("Place confusion matrix file at confusion_matrix.png to display.")
+        st.info("Place your training run's confusion matrix at `confusion_matrix.png` to display it here.")
 
 st.markdown("""
 <div class="footer">
