@@ -7,7 +7,7 @@ import plotly.express as px
 from inference import detect_image, detect_video
 
 st.set_page_config(
-    page_title="Autonom · Aerial Scene Understanding",
+    page_title="Autonom · Streamlit Demo",
     page_icon="🛸",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -68,11 +68,18 @@ with st.sidebar:
     selected_sample = st.selectbox("Try a sample image or video", ["— none —"] + sample_files) if sample_files else "— none —"
 
 # ── Header ──────────────────────────────────────────────────────────────────────
+st.markdown(
+    '<div style="margin:0 0 1rem 0;font-size:0.9rem;color:#90cdf4;">'
+    '<a href="https://uzaairmalik.github.io/Autonom/" target="_blank" rel="noopener" style="color:#90cdf4;text-decoration:none;">← Back to overview</a>'
+    '</div>',
+    unsafe_allow_html=True,
+)
+
 st.markdown("""
 <div class="hero-header">
     <div class="hero-badge">🛸 FYP · Computer Vision · YOLOv11</div>
-    <h1 class="hero-title">Aerial Scene Understanding Dashboard</h1>
-    <p class="hero-sub">Upload a drone image or video to detect and count objects with a custom-trained YOLOv11 model.</p>
+    <h1 class="hero-title">Autonom Streamlit Demo</h1>
+    <p class="hero-sub">Upload a drone image or video to detect and count objects with a custom-trained YOLOv11 model. Video inference is handled here; the GitHub Pages site remains the landing page.</p>
 </div>
 """, unsafe_allow_html=True)
 
