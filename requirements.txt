@@ -3,6 +3,6 @@ opencv-python-headless
 streamlit
 pillow
 numpy
-plotly
+plotly==6.9.0
 pandas
 lapx
