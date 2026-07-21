@@ -1,8 +1,7 @@
-ultralytics
-opencv-python-headless
-streamlit
-pillow
-numpy
+ultralytics==8.2.0
+opencv-python-headless==4.9.0.80
+streamlit==1.35.0
+pillow==10.3.0
+numpy==1.26.4
 plotly==6.9.0
-pandas
-lapx
+pandas==2.2.2
