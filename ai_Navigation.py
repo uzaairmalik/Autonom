@@ -23,14 +23,16 @@ ZONES = {
 }
 
 CLASS_WEIGHTS = {
-    "person": 1.0,
-    "car": 0.9,
-    "truck": 0.8,
-    "bus": 0.8,
-    "motorcycle": 0.7,
+    "pedestrian": 1.0,
+    "people": 1.0,
     "bicycle": 0.6,
-    "chair": 0.2,
-    "table": 0.2
+    "car": 0.9,
+    "van": 0.9,
+    "truck": 0.8,
+    "tricycle": 0.7,
+    "awning-tricycle": 0.7,
+    "bus": 0.8,
+    "motor": 0.7
 }
 
 RISK_THRESHOLDS = {
