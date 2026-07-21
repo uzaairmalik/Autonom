@@ -6,7 +6,7 @@ from typing import Generator
 
 import time
 
-MODEL_PATH = "models/best.pt"
+MODEL_PATH = "models/newbest.pt"
 
 model = YOLO(MODEL_PATH)
 
