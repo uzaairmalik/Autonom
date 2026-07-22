@@ -1,5 +1,5 @@
 """
-Aerial Object Detection — YOLO11n on VisDrone2019
+Aerial Object Detection — YOLO11n on VisDrone2019 / Multi-YOLO Upgraded App
 Single Streamlit app for image and video inference.
 """
 
@@ -12,6 +12,7 @@ import streamlit as st
 from PIL import Image
 
 from inference import detect_image, detect_video
+from model_loader import load_model, MODEL_CONFIG
 
 st.set_page_config(
     page_title="Autonom · Streamlit Demo",
@@ -28,6 +29,8 @@ if "frame_history" not in st.session_state:
     st.session_state.frame_history = []
 if "inf_time" not in st.session_state:
     st.session_state.inf_time = 0.0
+if "video_fps" not in st.session_state:
+    st.session_state.video_fps = 0.0
 
 st.markdown(
     """
@@ -52,21 +55,47 @@ st.markdown(
 
 with st.sidebar:
     st.markdown(
-        "<div style='text-align:center;padding:0.75rem 0 0.5rem;'><div style='font-size:2rem;'>□</div><div style='font-family:IBM Plex Mono, monospace;font-weight:700;color:#e8a33d;'>VISDRONE // YOLO11n</div><div style='font-size:.75rem;color:#8b98b8;'>Single Streamlit demo</div></div>",
+        "<div style='text-align:center;padding:0.75rem 0 0.5rem;'><div style='font-size:2rem;'>□</div><div style='font-family:IBM Plex Mono, monospace;font-weight:700;color:#e8a33d;'>VISDRONE // MULTI-YOLO</div><div style='font-size:.75rem;color:#8b98b8;'>Upgraded Streamlit demo</div></div>",
         unsafe_allow_html=True,
     )
+
+    st.markdown("### Model Selection")
+    selected_model_name = st.selectbox(
+        "Choose YOLO Model",
+        options=list(MODEL_CONFIG.keys()),
+        index=0,
+        help="Select between the local trained model or Hugging Face YOLOv26 model sizes."
+    )
+
+    # Show selected model information
+    cfg = MODEL_CONFIG[selected_model_name]
+    st.markdown(
+        f"""
+        <div style="background-color: rgba(232,163,61,0.08); border: 1px solid rgba(232,163,61,0.3); border-radius: 8px; padding: 8px; margin-bottom: 15px; font-size: 0.85rem;">
+          <strong>Type:</strong> {cfg['type'].upper()}<br/>
+          <strong>Parameters:</strong> {cfg['params']}<br/>
+          <strong>Input Size:</strong> {cfg['imgsz']}<br/>
+          <strong>Description:</strong> {cfg['desc']}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
     st.markdown("### Settings")
     conf = st.slider("Confidence", 0.10, 0.90, 0.25, 0.05)
     iou = st.slider("IoU (video NMS)", 0.10, 0.90, 0.45, 0.05)
     st.markdown("### Links")
     st.markdown(f"[Project overview]({SITE_URL})")
 
+# Dynamically load the selected YOLO model (cached using Streamlit cache_resource)
+yolo_model = load_model(selected_model_name)
+
 st.markdown(
-    """
+    f"""
     <div class="hero">
-      <div class="eyebrow">Live Demo // Streamlit</div>
-      <div class="title">Image and video detection in one place</div>
-      <p class="sub">Upload an aerial image for a quick check or a video for tracked multi-frame inference. There is no separate browser demo anymore.</p>
+      <div class="eyebrow">Live Demo // Multi-Model Support</div>
+      <div class="title">Aerial Object Detection Platform</div>
+      <p class="sub">Currently Running: <strong>{selected_model_name}</strong>. Support for local model and Hugging Face YOLOv26 variants (n, s, m, l, x) on VisDrone categories.</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -118,7 +147,7 @@ with tab_image:
         result_path = None
         counts = {}
         try:
-            result_path, counts, inf_time = detect_image(tmp_path, "outputs/result.jpg", conf)
+            result_path, counts, inf_time = detect_image(yolo_model, tmp_path, "outputs/result.jpg", conf)
             st.session_state.counts = counts
             st.session_state.frame_history = []
             st.session_state.inf_time = inf_time
@@ -181,10 +210,12 @@ with tab_video:
         output_path = "outputs/result.mp4"
 
         try:
-            generator = detect_video(tmp_path, output_path, conf, iou)
+            generator = detect_video(yolo_model, tmp_path, output_path, conf, iou)
+            last_fps = 0.0
             while True:
                 frame_idx, total_frames, frame_counts, current_fps = next(generator)
                 st.session_state.counts = frame_counts
+                last_fps = current_fps
                 pct = int((frame_idx + 1) / max(total_frames, 1) * 100)
                 progress_bar.progress(
                     min(pct, 100),
@@ -195,6 +226,7 @@ with tab_video:
                 output_path, counts, frame_history = stop.value
                 st.session_state.counts = counts
                 st.session_state.frame_history = frame_history
+                st.session_state.video_fps = last_fps
         except RuntimeError as error:
             st.error(f"Video processing failed: {error}")
         finally:
@@ -231,7 +263,25 @@ with tab_video:
             st.info("No detections above the current confidence threshold — try lowering it in the sidebar.")
 
 with tab_analytics:
-    st.subheader("Analytics")
+    st.subheader("Analytics Dashboard")
+
+    # Add real-time performance indicator section
+    perf_col1, perf_col2, perf_col3 = st.columns(3)
+    with perf_col1:
+        st.metric("Selected Model", selected_model_name)
+    with perf_col2:
+        if st.session_state.get("inf_time", 0.0) > 0:
+            st.metric("Image Inference Time", f"{st.session_state.inf_time:.3f} seconds")
+        else:
+            st.metric("Image Inference Time", "N/A")
+    with perf_col3:
+        if st.session_state.get("video_fps", 0.0) > 0:
+            st.metric("Video Inference Speed", f"{st.session_state.video_fps:.1f} FPS")
+        else:
+            st.metric("Video Inference Speed", "N/A")
+
+    st.markdown("---")
+
     if st.session_state.counts:
         series = pd.Series(st.session_state.counts).sort_values(ascending=False)
         fig = px.bar(

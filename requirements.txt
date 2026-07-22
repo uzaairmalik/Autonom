@@ -6,3 +6,4 @@ numpy==2.5.1
 plotly==6.9.0
 pandas==3.0.3
 lapx==0.9.4
+huggingface_hub

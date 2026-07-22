@@ -3,19 +3,14 @@ import cv2
 import os
 from collections import Counter
 from typing import Generator
-
 import time
 
-MODEL_PATH = "models/best10classes.pt"
-
-model = YOLO(MODEL_PATH)
-
-
-def detect_image(image_path, output_path="outputs/result.jpg", conf=0.25):
+def detect_image(model, image_path, output_path="outputs/result.jpg", conf=0.25):
     """
     Run YOLO object detection on an aerial image.
 
     Args:
+        model: Loaded YOLO model instance.
         image_path (str): Path to the input image.
         output_path (str): Path to save the annotated output image.
         conf (float): Confidence threshold for detections.
@@ -44,6 +39,7 @@ def detect_image(image_path, output_path="outputs/result.jpg", conf=0.25):
 
 
 def detect_video(
+    model,
     video_path: str,
     output_path: str = "outputs/result.mp4",
     conf: float = 0.25,
@@ -63,6 +59,7 @@ def detect_video(
     Returns (output_path, aggregate_counts, frame_counts_history) when complete.
 
     Args:
+        model       : Loaded YOLO model instance.
         video_path  : Path to the input video file.
         output_path : Where to save the annotated output video.
         conf        : YOLO confidence threshold.
