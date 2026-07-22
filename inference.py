@@ -16,8 +16,8 @@ def detect_image(model, image_path, output_path="outputs/result.jpg", conf=0.25)
         conf (float): Confidence threshold for detections.
 
     Returns:
-        tuple: (output_path, counts_dict, inference_time) where counts_dict maps class name -> count.
-               Returns (None, {}, 0.0) if no results produced.
+        tuple: (output_path, counts_dict, inference_time, avg_conf, total_objects) where counts_dict maps class name -> count.
+               Returns (None, {}, 0.0, 0.0, 0) if no results produced.
     """
     start_time = time.time()
     results = model(image_path, conf=conf)
@@ -28,14 +28,17 @@ def detect_image(model, image_path, output_path="outputs/result.jpg", conf=0.25)
         annotated = r.plot()
         names = r.names
         classes = r.boxes.cls.tolist() if r.boxes is not None else []
+        confs = r.boxes.conf.tolist() if r.boxes is not None else []
         counts = Counter([names[int(c)] for c in classes])
 
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         cv2.imwrite(output_path, annotated)
 
-        return output_path, dict(counts), inference_time
+        avg_conf = sum(confs) / len(confs) if confs else 0.0
 
-    return None, {}, 0.0
+        return output_path, dict(counts), inference_time, avg_conf, len(classes)
+
+    return None, {}, 0.0, 0.0, 0
 
 
 def detect_video(
@@ -75,7 +78,7 @@ def detect_video(
     if not cap.isOpened():
         raise RuntimeError(f"Cannot open video: {video_path}")
 
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 1) # avoid divide by 0
     video_fps    = cap.get(cv2.CAP_PROP_FPS) or 25.0
     width        = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height       = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
