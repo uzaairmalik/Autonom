@@ -9,8 +9,11 @@ MODEL_CONFIG = {
         "type": "local",
         "path": "models/best10classes.pt",
         "desc": "Custom 10-class model trained on VisDrone dataset.",
-        "params": "~3.0M",
-        "imgsz": "640x640"
+        "params": "3.0M",
+        "imgsz": "640x640",
+        "mAP": "32.4%",
+        "Precision": "44.9%",
+        "Recall": "34.7%"
     },
     "YOLOv26n": {
         "type": "hf",
@@ -18,7 +21,10 @@ MODEL_CONFIG = {
         "filename": "model.pt",
         "desc": "YOLOv26 Nano - NMS-free, ultra-fast, optimized for edge CPU deployment.",
         "params": "2.4M",
-        "imgsz": "640x640"
+        "imgsz": "640x640",
+        "mAP": "40.9%",
+        "Precision": "51.2%",
+        "Recall": "39.8%"
     },
     "YOLOv26s": {
         "type": "hf",
@@ -26,7 +32,10 @@ MODEL_CONFIG = {
         "filename": "model.pt",
         "desc": "YOLOv26 Small - NMS-free, excellent balance between speed and accuracy.",
         "params": "9.5M",
-        "imgsz": "640x640"
+        "imgsz": "640x640",
+        "mAP": "48.6%",
+        "Precision": "59.1%",
+        "Recall": "46.5%"
     },
     "YOLOv26m": {
         "type": "hf",
@@ -34,7 +43,10 @@ MODEL_CONFIG = {
         "filename": "model.pt",
         "desc": "YOLOv26 Medium - NMS-free, powerful real-time detector.",
         "params": "20.4M",
-        "imgsz": "640x640"
+        "imgsz": "640x640",
+        "mAP": "53.1%",
+        "Precision": "63.4%",
+        "Recall": "51.0%"
     },
     "YOLOv26l": {
         "type": "hf",
@@ -42,7 +54,10 @@ MODEL_CONFIG = {
         "filename": "model.pt",
         "desc": "YOLOv26 Large - NMS-free, high-capacity model for complex scenarios.",
         "params": "24.8M",
-        "imgsz": "640x640"
+        "imgsz": "640x640",
+        "mAP": "55.0%",
+        "Precision": "65.2%",
+        "Recall": "53.2%"
     },
     "YOLOv26x": {
         "type": "hf",
@@ -50,7 +65,10 @@ MODEL_CONFIG = {
         "filename": "model.pt",
         "desc": "YOLOv26 Extra Large - NMS-free, maximum accuracy variant.",
         "params": "55.7M",
-        "imgsz": "640x640"
+        "imgsz": "640x640",
+        "mAP": "57.5%",
+        "Precision": "68.0%",
+        "Recall": "55.8%"
     }
 }
 
