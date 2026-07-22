@@ -9,7 +9,7 @@ const COLORS = [
 ];
 
 let session;
-const modelPath = 'models/best.onnx';
+const modelPath = 'models/best10classes.onnx';
 
 async function initModel() {
     const statusEl = document.getElementById('demo-status');
