@@ -1,6 +1,6 @@
 """
 Autonom
-Multi-YOLO Object Detection Platform
+Multi-Model Aerial Object Detection Platform
 VisDrone2019
 """
 
@@ -71,7 +71,7 @@ with st.sidebar:
         "Choose YOLO Model",
         options=list(MODEL_CONFIG.keys()),
         index=0,
-        help="Select between the local trained model or Hugging Face YOLOv26 model sizes."
+        help="Select the object detection model used for inference."
     )
 
     cfg = MODEL_CONFIG[selected_model_name]
@@ -79,9 +79,11 @@ with st.sidebar:
         f"""
         <div style="background-color: rgba(232,163,61,0.08); border: 1px solid rgba(232,163,61,0.3); border-radius: 8px; padding: 8px; margin-bottom: 15px; font-size: 0.85rem;">
           <strong>Type:</strong> {cfg['type'].upper()}<br/>
+          <strong>Architecture:</strong> {cfg['architecture']}<br/>
+          <strong>Dataset:</strong> {cfg['dataset']}<br/>
           <strong>Parameters:</strong> {cfg['params']}<br/>
           <strong>Input Size:</strong> {cfg['imgsz']}<br/>
-          <strong>mAP@50:</strong> {cfg['mAP']}<br/>
+          <strong>mAP@50:</strong> {cfg['metrics']['mAP50']}<br/>
           <strong>Description:</strong> {cfg['desc']}
         </div>
         """,
@@ -100,8 +102,12 @@ yolo_model = load_model(selected_model_name)
 st.markdown(
     f"""
     <div class="hero">
-      <div class="eyebrow">Autonom // Multi-YOLO Object Detection Platform</div>
+      <div class="eyebrow">Autonom // Multi-Model Aerial Object Detection Platform</div>
       <div class="title">VisDrone2019 Aerial Scene Understanding</div>
+      <p class="sub">
+        Currently Running: <strong>{selected_model_name}</strong>.
+        Compare your custom-trained model with YOLOv8x, YOLOv9e, YOLOv10x and YOLOv26x.
+      </p>
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-top: 1.5rem;">
         <div style="background: rgba(255,255,255,0.06); padding: 0.8rem 1.2rem; border-radius: 12px; border-left: 4px solid #e8a33d;">
           <div style="font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: #8b98b8; text-transform: uppercase;">Current Model</div>
@@ -117,7 +123,7 @@ st.markdown(
         </div>
         <div style="background: rgba(255,255,255,0.06); padding: 0.8rem 1.2rem; border-radius: 12px; border-left: 4px solid #9f7aea;">
           <div style="font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: #8b98b8; text-transform: uppercase;">Dataset Target</div>
-          <div style="font-size: 1.15rem; font-weight: 700; color: #ffffff; margin-top: 2px;">VisDrone2019</div>
+          <div style="font-size: 1.15rem; font-weight: 700; color: #ffffff; margin-top: 2px;">{cfg['dataset']}</div>
         </div>
       </div>
     </div>
@@ -178,8 +184,6 @@ with tab_image:
             st.session_state.avg_conf = avg_conf
             st.session_state.total_objects = total_objects
         finally:
-            # We don't remove tmp_path yet if we want to run benchmarking on the same file!
-            # Let's save tmp_path into session_state so the benchmarking function can reuse it safely.
             st.session_state.last_image_path = tmp_path
 
         with col2:
@@ -214,7 +218,7 @@ with tab_image:
 
         if st.button("🚀 Run Benchmark All Models", use_container_width=True):
             if "last_image_path" in st.session_state and os.path.exists(st.session_state.last_image_path):
-                with st.spinner("Executing real-time inference benchmark across all 6 models..."):
+                with st.spinner("Executing real-time inference benchmark across all models..."):
                     benchmark_rows = []
                     for model_name, model_cfg in MODEL_CONFIG.items():
                         m_instance = load_model(model_name)
@@ -380,10 +384,10 @@ with tab_analytics:
 
     # Dynamic metrics display
     perf_col1, perf_col2, perf_col3, perf_col4 = st.columns(4)
-    perf_col1.metric("Selected Model", selected_model_name)
-    perf_col2.metric("Detected Classes", f"{detected_classes_count}")
-    perf_col3.metric("Average Confidence", f"{st.session_state.avg_conf:.1%}" if st.session_state.avg_conf > 0 else "N/A")
-    perf_col4.metric("Most Common Object", most_common_class)
+    perf_col1.metric("Current Model", selected_model_name)
+    perf_col2.metric("Inference Time", f"{st.session_state.inf_time:.3f} s")
+    perf_col3.metric("Video FPS", f"{st.session_state.video_fps:.1f} FPS")
+    perf_col4.metric("Detected Objects", sum(st.session_state.counts.values()))
 
     st.markdown("---")
 
@@ -410,10 +414,46 @@ with tab_analytics:
 
 with tab_eval:
     st.subheader("Model Evaluation Metrics")
-    st.write(f"Showing validated offline benchmarks for **{selected_model_name}** on the VisDrone2019 validation set.")
-    metrics_cols = st.columns(3)
-    metrics_cols[0].metric("mAP@50", cfg["mAP"])
-    metrics_cols[1].metric("Precision", cfg["Precision"])
-    metrics_cols[2].metric("Recall", cfg["Recall"])
+    st.write(f"Showing validated offline benchmarks for **{selected_model_name}**.")
 
-st.markdown("<div class='footer'>Autonom · Streamlit-only demo</div>", unsafe_allow_html=True)
+    metrics = cfg["metrics"]
+
+    c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
+    c1.metric("Model Name", selected_model_name)
+    c2.metric("Architecture", cfg["architecture"])
+    c3.metric("Dataset", cfg["dataset"])
+    c4.metric("Input Size", cfg["imgsz"])
+    c5.metric("mAP@50", metrics["mAP50"])
+    c6.metric("Precision", metrics["Precision"])
+    c7.metric("Recall", metrics["Recall"])
+
+    st.markdown("---")
+    st.markdown("### 📊 Model Comparison Reference Table")
+    st.write("Compare the baseline characteristics across all pre-configured models. The currently selected model is highlighted below.")
+
+    # Constructing dataframe for the model comparison
+    comparison_data = []
+    for model_name, model_cfg in MODEL_CONFIG.items():
+        comparison_data.append({
+            "Model": model_name,
+            "Architecture": model_cfg["architecture"],
+            "Dataset": model_cfg["dataset"],
+            "Input Size": model_cfg["imgsz"],
+            "mAP@50": model_cfg["metrics"]["mAP50"],
+            "Precision": model_cfg["metrics"]["Precision"],
+            "Recall": model_cfg["metrics"]["Recall"],
+            "Selected": "👉 Current" if model_name == selected_model_name else ""
+        })
+
+    df_comparison = pd.DataFrame(comparison_data)
+    st.dataframe(df_comparison, use_container_width=True, hide_index=True)
+
+st.markdown(
+    """
+    <div class='footer'>
+      <strong>Autonom</strong><br/>
+      Multi-Model Aerial Object Detection Platform
+    </div>
+    """,
+    unsafe_allow_html=True
+)
